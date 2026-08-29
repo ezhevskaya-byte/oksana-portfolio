@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /cases/bot.html
+Disallow: /cases/ai-assistant.html
