@@ -1583,6 +1583,153 @@ article.project-card:hover {
   margin: 0.4rem 0 0;
 }
 
+/* Satin case — soft shop / textile presentation */
+.case-page--satin {
+  --case-linen: #8a5a48;
+  --case-linen-soft: #f3ebe3;
+  --case-linen-line: #d2b8a8;
+}
+
+.case-page--satin .case-hero--satin {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--case-linen-soft) 55%, transparent),
+      transparent 72%
+    );
+}
+
+.case-page--satin .case-eyebrow {
+  color: var(--case-linen);
+}
+
+.case-page--satin .case-block--linen {
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--case-linen-soft) 70%, var(--bg-paper)),
+      var(--bg-paper) 70%
+    );
+}
+
+.case-shot--satin {
+  background: color-mix(in srgb, var(--case-linen-soft) 50%, var(--bg-paper));
+}
+
+.case-path-block {
+  overflow: hidden;
+}
+
+.case-path {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  margin: 1.2rem 0 0;
+  padding: 0.2rem 0 0;
+  list-style: none;
+}
+
+.case-path__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0 0.9rem 0 0;
+}
+
+.case-path__step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 0.72rem;
+  left: 2.05rem;
+  right: 0.35rem;
+  height: 1px;
+  background: color-mix(in srgb, var(--case-linen-line) 80%, var(--line));
+}
+
+.case-path__num {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  background: var(--bg-paper);
+  border: 1px solid color-mix(in srgb, var(--case-linen-line) 75%, var(--line));
+  color: var(--case-linen);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.case-path__text {
+  display: block;
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.case-feature-grid--shop .case-feature {
+  background: color-mix(in srgb, var(--case-linen-soft) 42%, var(--bg-paper));
+  border-color: color-mix(in srgb, var(--case-linen-line) 50%, var(--line));
+}
+
+.case-feature-grid--shop .case-feature h3 {
+  color: color-mix(in srgb, var(--case-linen) 65%, var(--ink));
+}
+
+.case-assortment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.case-assortment li {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.35rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: var(--bg-paper);
+  border: 1px solid color-mix(in srgb, var(--case-linen-line) 60%, var(--line));
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.case-page--satin .case-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.case-page--satin .case-chips li {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 2.3rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--case-linen-soft) 55%, var(--bg-paper));
+  border: 1px solid color-mix(in srgb, var(--case-linen-line) 55%, var(--line));
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
 .placeholder-note {
   margin-top: 1rem;
   padding: 0.9rem 1rem;
@@ -1679,6 +1826,20 @@ article.project-card:hover {
     grid-template-columns: 1fr 1fr;
   }
 
+  .case-path {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem 0.85rem;
+  }
+
+  .case-path__step {
+    padding: 0;
+  }
+
+  .case-path__step:not(:last-child)::after {
+    display: none;
+  }
+
+
   .story-flow {
     gap: 0.9rem 1rem;
   }
@@ -1759,6 +1920,33 @@ article.project-card:hover {
   .case-feature-grid {
     grid-template-columns: 1fr;
   }
+
+  .case-path {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .case-path__step {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 0 0 1.1rem 0.15rem;
+  }
+
+  .case-path__step:last-child {
+    padding-bottom: 0;
+  }
+
+  .case-path__step:not(:last-child)::after {
+    display: block;
+    top: 1.55rem;
+    left: 0.88rem;
+    right: auto;
+    width: 1px;
+    height: calc(100% - 1.55rem);
+    background: color-mix(in srgb, var(--case-linen-line) 80%, var(--line));
+  }
+
 
   .story-flow {
     gap: 0;
