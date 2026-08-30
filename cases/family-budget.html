@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Кейс «Семейный бюджет» — Оксана Ежевская</title>
+    <meta name="description" content="Интерактивный web-сервис для ведения и анализа семейного бюджета: доходы, расходы, цели, динамика и рекомендации.">
+    <meta name="theme-color" content="#f4efe6">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Перейти к содержимому</a>
+    <header class="header">
+      <div class="container header__inner">
+        <a class="logo" href="/">
+          <span class="logo__name">Оксана Ежевская</span>
+          <span class="logo__note">Сайты и digital-продукты</span>
+        </a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+          <span class="nav-toggle__icon" aria-hidden="true"></span>
+          <span class="sr-only">Открыть меню</span>
+        </button>
+        <nav class="nav" id="site-nav" aria-label="Основная навигация">
+          <a href="/#expertise">Экспертиза</a>
+          <a href="/#projects">Проекты</a>
+          <a href="/#process">Как я работаю</a>
+          <a href="/#about">Обо мне</a>
+          <a class="btn btn-primary" href="/#contact">Обсудить проект</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <header class="case-hero">
+        <div class="container">
+          <p class="case-eyebrow">Финансовый web-сервис</p>
+          <h1>Семейный бюджет</h1>
+          <p class="case-lead">Интерактивный сервис для ведения и анализа семейного бюджета. Помогает собрать доходы и расходы в одном месте, увидеть остаток, структуру трат и долю сбережений, а затем сравнить финансовые показатели за несколько месяцев.</p>
+          <div class="case-kicker">
+            <span class="chip">Web-сервис</span>
+            <span class="chip">Финансы</span>
+            <span class="chip">Аналитика</span>
+            <span class="chip">Интерактивный интерфейс</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="container case-layout">
+        <article class="case-block">
+          <h2>Не просто посчитать расходы, а увидеть картину бюджета</h2>
+          <p>Задача проекта — дать семье понятный инструмент, в котором можно фиксировать доходы и расходы, контролировать финансовые цели и видеть, куда уходят деньги. Важно было не ограничиваться обычным калькулятором: пользователь должен получать не только итоговую сумму, но и понятную аналитику для принятия решений.</p>
+        </article>
+
+        <div class="case-visuals">
+          <figure class="media-frame case-shot">
+            <img
+              class="js-lightbox"
+              src="/images/family-budget-main.png"
+              alt="Главный экран сервиса «Семейный бюджет» с показателями и структурой расходов"
+              width="1465"
+              height="1233"
+            >
+          </figure>
+          <figure class="media-frame case-shot">
+            <img
+              class="js-lightbox"
+              src="/images/family-budget-analysis.png"
+              alt="Экран анализа бюджета за период в сервисе «Семейный бюджет»"
+              width="1452"
+              height="1255"
+              loading="lazy"
+            >
+          </figure>
+        </div>
+
+        <article class="case-block">
+          <h2>Основные возможности</h2>
+          <ul class="case-feature-grid">
+            <li class="case-feature">
+              <h3>Доходы и расходы</h3>
+              <p>Учёт поступлений и расходов семьи по категориям и датам.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Финансовые показатели</h3>
+              <p>Общий доход, расходы, остаток и доля сбережений пересчитываются автоматически.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Структура расходов</h3>
+              <p>Сервис показывает, какие категории занимают наибольшую долю бюджета.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Финансовые цели</h3>
+              <p>Можно установить лимит расходов и цель накоплений и отслеживать их выполнение.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Анализ за период</h3>
+              <p>Сравнение бюджета за 3, 6, 9 или 12 месяцев.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Рекомендации</h3>
+              <p>На основе введённых данных сервис формирует автоматические подсказки по текущему бюджету и возможной оптимизации расходов.</p>
+            </li>
+          </ul>
+        </article>
+
+        <article class="case-block">
+          <h2>От ввода данных к понятному решению</h2>
+          <ol class="story-flow case-story-flow">
+            <li><span>Пользователь вводит доходы и расходы</span></li>
+            <li><span>Сервис автоматически пересчитывает показатели</span></li>
+            <li><span>Расходы распределяются по категориям</span></li>
+            <li><span>Пользователь задаёт лимиты и цели</span></li>
+            <li><span>История сохраняется по месяцам</span></li>
+            <li><span>Анализ за период показывает динамику и рекомендации</span></li>
+          </ol>
+        </article>
+
+        <article class="case-block">
+          <h2>Что реализовано</h2>
+          <ul class="skill-grid case-implemented">
+            <li class="skill-card">Учёт доходов и расходов</li>
+            <li class="skill-card">Категории трат</li>
+            <li class="skill-card">Расчёт остатка и доли сбережений</li>
+            <li class="skill-card">Лимит расходов</li>
+            <li class="skill-card">Цель накоплений</li>
+            <li class="skill-card">Расходы на одного человека</li>
+            <li class="skill-card">Анализ за 3–12 месяцев</li>
+            <li class="skill-card">Автоматические рекомендации</li>
+            <li class="skill-card">Сохранение истории в браузере</li>
+            <li class="skill-card">Экспорт и импорт резервной копии</li>
+            <li class="skill-card">Печать отчёта</li>
+            <li class="skill-card">Светлая и тёмная тема</li>
+            <li class="skill-card">Адаптивный интерфейс</li>
+          </ul>
+        </article>
+
+        <article class="case-block">
+          <h2>Что можно развивать дальше</h2>
+          <p>Следующий этап развития сервиса — более глубокая аналитика: визуальные графики динамики, сравнение категорий по месяцам, персональные финансовые сценарии и более гибкие рекомендации.</p>
+        </article>
+
+        <a class="back-link case-back-end" href="/#projects">← Вернуться к проектам</a>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer__inner">
+        <p>Оксана Ежевская</p>
+        <p>Кейс «Семейный бюджет»</p>
+        <a href="/">На главную</a>
+      </div>
+    </footer>
+
+    <div class="lightbox" id="lightbox" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="Просмотр изображения проекта">
+      <button class="lightbox__close" type="button" aria-label="Закрыть просмотр изображения">&times;</button>
+      <figure class="lightbox__figure">
+        <img class="lightbox__image" src="" alt="">
+      </figure>
+    </div>
+
+    <script src="/js/main.js"></script>
+  </body>
+</html>

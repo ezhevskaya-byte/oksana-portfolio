@@ -23,12 +23,6 @@
       if (label) label.textContent = open ? "Открыть меню" : "Закрыть меню";
     });
 
-    document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
-        toggle.click();
-      }
-    });
-
     nav.querySelectorAll("a").forEach(function (link) {
       link.addEventListener("click", function () {
         var label = toggle.querySelector(".sr-only");
@@ -107,13 +101,38 @@
     })
       .map(function (project) {
         var title = project.title || project.type;
-        var media = project.image
-          ? '<img src="' +
+        var media;
+
+        if (
+          (project.mediaLayout === "pair" ||
+            project.mediaLayout === "bot" ||
+            project.mediaLayout === "budget") &&
+          project.image &&
+          project.imageSecondary
+        ) {
+          media =
+            '<div class="project-pair">' +
+            '<img class="project-pair__main js-lightbox" src="' +
             project.image +
             '" alt="' +
             escapeHtml(project.imageLabel || title) +
-            '">'
-          : '<div class="media-placeholder" aria-hidden="true"></div>';
+            '">' +
+            '<img class="project-pair__secondary js-lightbox" src="' +
+            project.imageSecondary +
+            '" alt="' +
+            escapeHtml(project.imageSecondaryLabel || title) +
+            '">' +
+            "</div>";
+        } else if (project.image) {
+          media =
+            '<img class="js-lightbox" src="' +
+            project.image +
+            '" alt="' +
+            escapeHtml(project.imageLabel || title) +
+            '">';
+        } else {
+          media = '<div class="media-placeholder" aria-hidden="true"></div>';
+        }
 
         var meta = "";
         if (project.type && project.title) {
@@ -127,29 +146,137 @@
           ? "<p>" + escapeHtml(project.description) + "</p>"
           : "";
 
-        return (
-          '<a class="project-card" href="' +
-          project.href +
-          '">' +
-          '<div class="project-card__media media-frame">' +
-          media +
-          "</div>" +
+        var done = "";
+        if (project.doneLabel && project.doneText) {
+          done =
+            '<div class="project-card__done">' +
+            '<span class="project-card__done-label">' +
+            escapeHtml(project.doneLabel) +
+            "</span>" +
+            "<p>" +
+            escapeHtml(project.doneText) +
+            "</p>" +
+            "</div>";
+        }
+
+        var link = "";
+        if (project.linkLabel && !project.noLink) {
+          link =
+            '<span class="project-card__link">' +
+            escapeHtml(project.linkLabel) +
+            "</span>";
+        }
+
+        var detail = "";
+        if (project.detailHref && project.detailLabel) {
+          detail =
+            '<a class="project-card__more" href="' +
+            escapeHtml(project.detailHref) +
+            '">' +
+            escapeHtml(project.detailLabel) +
+            ' <span class="project-card__more-arrow" aria-hidden="true">→</span></a>';
+        }
+
+        var mediaClass = "project-card__media media-frame";
+        if (project.imageFit === "full") mediaClass += " project-card__media--full";
+        if (project.imageFit === "satin") mediaClass += " project-card__media--satin";
+        if (project.mediaLayout === "pair") mediaClass += " project-card__media--bukvomore";
+        if (project.mediaLayout === "bot") mediaClass += " project-card__media--bot";
+        if (project.mediaLayout === "budget") mediaClass += " project-card__media--budget";
+
+        var body =
           '<div class="project-card__body">' +
           meta +
           "<h3>" +
           escapeHtml(title) +
           "</h3>" +
           description +
-          '<span class="project-card__link">' +
-          escapeHtml(project.linkLabel || "Подробнее") +
-          "</span>" +
-          "</div></a>"
+          done +
+          detail +
+          link +
+          "</div>";
+
+        var mediaBlock = '<div class="' + mediaClass + '">' + media + "</div>";
+
+        if (project.noLink) {
+          return '<article class="project-card">' + mediaBlock + body + "</article>";
+        }
+
+        return (
+          '<a class="project-card" href="' +
+          project.href +
+          '">' +
+          mediaBlock +
+          body +
+          "</a>"
         );
       })
       .join("");
 
     grid.innerHTML = cards;
   }
+
+  var lightbox = document.getElementById("lightbox");
+  var lightboxImage = lightbox ? lightbox.querySelector(".lightbox__image") : null;
+  var lightboxClose = lightbox ? lightbox.querySelector(".lightbox__close") : null;
+
+  function isLightboxOpen() {
+    return Boolean(lightbox && !lightbox.hasAttribute("hidden"));
+  }
+
+  function openLightbox(source) {
+    if (!lightbox || !lightboxImage || !source || !source.src) return;
+    lightboxImage.src = source.currentSrc || source.src;
+    lightboxImage.alt = source.alt || "";
+    lightbox.removeAttribute("hidden");
+    lightbox.setAttribute("aria-hidden", "false");
+    document.body.classList.add("is-lightbox-open");
+    if (lightboxClose) lightboxClose.focus();
+  }
+
+  function closeLightbox() {
+    if (!lightbox || !lightboxImage || !isLightboxOpen()) return;
+    lightbox.setAttribute("hidden", "");
+    lightbox.setAttribute("aria-hidden", "true");
+    lightboxImage.removeAttribute("src");
+    lightboxImage.alt = "";
+    document.body.classList.remove("is-lightbox-open");
+  }
+
+  document.addEventListener("click", function (event) {
+    var trigger = event.target.closest("img.js-lightbox");
+    if (trigger) {
+      event.preventDefault();
+      event.stopPropagation();
+      openLightbox(trigger);
+      return;
+    }
+
+    if (!isLightboxOpen()) return;
+
+    if (event.target === lightbox || event.target === lightbox.querySelector(".lightbox__figure")) {
+      closeLightbox();
+    }
+  });
+
+  if (lightboxClose) {
+    lightboxClose.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeLightbox();
+    });
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") return;
+    if (isLightboxOpen()) {
+      closeLightbox();
+      return;
+    }
+    if (toggle && toggle.getAttribute("aria-expanded") === "true") {
+      toggle.click();
+    }
+  });
 
   function escapeHtml(value) {
     return String(value || "")
