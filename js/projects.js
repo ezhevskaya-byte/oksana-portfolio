@@ -40,7 +40,7 @@ window.PROJECTS = [
   {
     id: "bukvomore",
     title: "БуквоМоре",
-    type: "Развивающая web-игра",
+    type: "Развивающая веб-игра",
     status: "",
     featured: false,
     noLink: true,
@@ -81,7 +81,7 @@ window.PROJECTS = [
   {
     id: "family-budget",
     title: "Семейный бюджет",
-    type: "Финансовый web-сервис",
+    type: "Финансовый веб-сервис",
     status: "",
     featured: false,
     noLink: true,

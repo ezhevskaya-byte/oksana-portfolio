@@ -534,24 +534,92 @@ textarea {
 }
 
 .pullquote {
-  padding: 1.6rem 1.6rem 1.75rem;
+  padding: 1.2rem 1.5rem 1.65rem;
   border-radius: 16px;
   background: var(--bg-paper);
   border: 1px solid var(--line);
 }
 
-.pullquote p {
+.pullquote__text {
+  position: relative;
+  margin: 0;
+  overflow-wrap: break-word;
   font-family: var(--font-serif);
-  font-size: clamp(1.3rem, 2.2vw, 1.7rem);
-  line-height: 1.35;
+  font-size: clamp(1.35rem, 1.8vw, 1.68rem);
+  line-height: 1.34;
+  letter-spacing: -0.012em;
 }
 
-.pullquote span {
+.pullquote__text-measure {
   display: block;
-  margin-top: 1.2rem;
-  color: var(--ink-soft);
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.pullquote__compose--flow {
+  display: none;
+}
+
+.pullquote__line {
+  display: block;
+}
+
+.pullquote__line.pullquote__lead {
+  color: var(--ink);
+}
+
+.pullquote__line.pullquote__accent {
+  color: var(--accent);
+}
+
+.pullquote__text-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.pullquote__text-live {
+  display: inline;
+}
+
+.pullquote__lead {
+  color: var(--ink);
+}
+
+.pullquote__accent {
+  color: var(--accent);
+}
+
+.pullquote__cursor {
+  display: inline-block;
+  width: 0.1em;
+  height: 0.88em;
+  margin-left: 0.05em;
+  vertical-align: -0.1em;
+  background: color-mix(in srgb, var(--accent) 72%, var(--ink));
+  animation: type-caret 1.05s steps(1, end) infinite;
+}
+
+.pullquote__text.is-static .pullquote__text-measure {
+  display: none;
+}
+
+.pullquote__text.is-static .pullquote__text-overlay {
+  position: static;
+}
+
+.pullquote__caption {
+  display: block;
+  margin-top: 0.95rem;
+  max-width: 36rem;
+  color: color-mix(in srgb, var(--ink-soft) 88%, var(--ink));
   font-family: var(--font-sans);
-  font-size: 0.95rem;
+  font-size: 0.86rem;
+  font-weight: 450;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
 }
 
 .experience-list {
@@ -888,6 +956,9 @@ textarea {
 }
 
 .featured__cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
   margin-top: 2rem;
 }
 
@@ -1656,6 +1727,13 @@ a.contact-card:focus-visible .contact-card__arrow {
   gap: 0.8rem;
   align-items: center;
   justify-content: space-between;
+}
+
+.case-cta__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  flex-shrink: 0;
 }
 
 .case-kicker {
@@ -2499,6 +2577,11 @@ a.contact-card:focus-visible .contact-card__arrow {
     opacity: 1;
   }
 
+  .pullquote__cursor {
+    animation: none;
+    opacity: 1;
+  }
+
   .project-card__more,
   .project-card__more-arrow {
     transition: none;
@@ -2658,6 +2741,23 @@ a.contact-card:focus-visible .contact-card__arrow {
 
   .hero__actions .btn {
     flex: 1 1 10rem;
+  }
+
+  .pullquote__text {
+    font-size: clamp(1.14rem, 4.2vw, 1.36rem);
+    line-height: 1.4;
+  }
+
+  .pullquote {
+    padding: 1.15rem 1.2rem 1.45rem;
+  }
+
+  .pullquote__compose--desktop {
+    display: none;
+  }
+
+  .pullquote__compose--flow {
+    display: block;
   }
 
   .experience-list,

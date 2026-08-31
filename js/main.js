@@ -231,6 +231,7 @@
   }
 
   initHeroTypewriter(reduceMotion);
+  initExpertiseTypewriter(reduceMotion);
 
   var lightbox = document.getElementById("lightbox");
   var lightboxImage = lightbox ? lightbox.querySelector(".lightbox__image") : null;
@@ -360,6 +361,155 @@
         }
         if (timer) window.clearTimeout(timer);
         timer = window.setTimeout(tick, 200);
+      },
+      false
+    );
+  }
+
+  function initExpertiseTypewriter(preferReduce) {
+    var root = document.querySelector("[data-expertise-typewriter]");
+    if (!root || root.dataset.expertiseTypewriterReady === "1") return;
+    root.dataset.expertiseTypewriterReady = "1";
+
+    var measure = root.querySelector(".pullquote__text-measure");
+    var live = root.querySelector(".pullquote__text-live");
+    if (!measure || !live) return;
+
+    var desktopLead = "Работа начинается\nне с шаблона и дизайна,";
+    var desktopAccent = "а с понимания бизнеса,\nаудитории и задачи\nбудущего продукта.";
+    var mobileLead = "Работа начинается не с шаблона и дизайна,";
+    var mobileAccent = " а с понимания бизнеса, аудитории и задачи будущего продукта.";
+    var mobileMql = window.matchMedia("(max-width: 767px)");
+
+    function getCopy() {
+      if (mobileMql.matches) {
+        return {
+          lead: mobileLead,
+          accent: mobileAccent,
+          multiline: false
+        };
+      }
+
+      return {
+        lead: desktopLead,
+        accent: desktopAccent,
+        multiline: true
+      };
+    }
+
+    function linesHtml(text, tone, appendCursor) {
+      if (!text) return "";
+
+      var lines = text.split("\n");
+
+      return lines
+        .map(function (line, index) {
+          var isLast = index === lines.length - 1;
+          var inner = escapeHtml(line);
+          if (isLast && appendCursor) {
+            inner += '<span class="pullquote__cursor" aria-hidden="true"></span>';
+          }
+          return (
+            '<span class="pullquote__line pullquote__' +
+            tone +
+            '">' +
+            inner +
+            "</span>"
+          );
+        })
+        .join("");
+    }
+
+    function renderSlice(slice, copy, showCursor) {
+      var leadLen = copy.lead.length;
+      var leadPart = slice.slice(0, Math.min(slice.length, leadLen));
+      var accentPart = slice.slice(leadLen);
+      var hasAccent = accentPart.length > 0;
+
+      if (!copy.multiline) {
+        var flatHtml =
+          '<span class="pullquote__lead">' +
+          escapeHtml(leadPart) +
+          '</span><span class="pullquote__accent">' +
+          escapeHtml(accentPart) +
+          "</span>";
+        if (showCursor) {
+          flatHtml += '<span class="pullquote__cursor" aria-hidden="true"></span>';
+        }
+        return flatHtml;
+      }
+
+      return (
+        linesHtml(leadPart, "lead", showCursor && !hasAccent) +
+        linesHtml(accentPart, "accent", showCursor && hasAccent)
+      );
+    }
+
+    function showStatic() {
+      root.classList.add("is-static");
+      live.innerHTML = measure.innerHTML;
+    }
+
+    if (preferReduce || !("IntersectionObserver" in window)) {
+      showStatic();
+      return;
+    }
+
+    var started = false;
+    var timer = null;
+    var charIndex = 0;
+    var charDelay = 52;
+    var activeCopy = getCopy();
+    var text = activeCopy.lead + activeCopy.accent;
+
+    function finish() {
+      root.classList.add("is-complete");
+      live.innerHTML = renderSlice(text, activeCopy, false);
+    }
+
+    function tick() {
+      charIndex += 1;
+      live.innerHTML = renderSlice(text.slice(0, charIndex), activeCopy, true);
+      if (charIndex >= text.length) {
+        finish();
+        return;
+      }
+      timer = window.setTimeout(tick, charDelay);
+    }
+
+    function startTyping() {
+      if (started) return;
+      started = true;
+      activeCopy = getCopy();
+      text = activeCopy.lead + activeCopy.accent;
+      charIndex = 0;
+      live.innerHTML = "";
+      tick();
+    }
+
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting || started) return;
+          observer.disconnect();
+          startTyping();
+        });
+      },
+      { threshold: 0.32, rootMargin: "0px 0px -6% 0px" }
+    );
+
+    observer.observe(root.closest(".pullquote") || root);
+
+    document.addEventListener(
+      "visibilitychange",
+      function () {
+        if (!started || charIndex >= text.length) return;
+        if (document.hidden) {
+          if (timer) window.clearTimeout(timer);
+          return;
+        }
+        if (timer) window.clearTimeout(timer);
+        timer = window.setTimeout(tick, 180);
       },
       false
     );
