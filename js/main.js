@@ -35,27 +35,6 @@
   }
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!reduceMotion && "IntersectionObserver" in window) {
-    var observer = new IntersectionObserver(
-      function (entries) {
-        entries.forEach(function (entry) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.14, rootMargin: "0px 0px -8% 0px" }
-    );
-
-    document.querySelectorAll(".scroll-reveal").forEach(function (el) {
-      observer.observe(el);
-    });
-  } else {
-    document.querySelectorAll(".scroll-reveal").forEach(function (el) {
-      el.classList.add("is-visible");
-    });
-  }
 
   document.querySelectorAll("[data-site-shot]").forEach(function (figure) {
     var img = figure.querySelector("img");
@@ -99,9 +78,11 @@
     var cards = window.PROJECTS.filter(function (project) {
       return !project.featured;
     })
-      .map(function (project) {
+      .map(function (project, cardIndex) {
         var title = project.title || project.type;
         var media;
+        var revealClass =
+          "project-card scroll-reveal scroll-reveal--d" + Math.min(cardIndex, 4);
 
         if (
           (project.mediaLayout === "pair" ||
@@ -199,11 +180,13 @@
         var mediaBlock = '<div class="' + mediaClass + '">' + media + "</div>";
 
         if (project.noLink) {
-          return '<article class="project-card">' + mediaBlock + body + "</article>";
+          return '<article class="' + revealClass + '">' + mediaBlock + body + "</article>";
         }
 
         return (
-          '<a class="project-card" href="' +
+          '<a class="' +
+          revealClass +
+          '" href="' +
           project.href +
           '">' +
           mediaBlock +
@@ -215,6 +198,30 @@
 
     grid.innerHTML = cards;
   }
+
+  if (!reduceMotion && "IntersectionObserver" in window) {
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.14, rootMargin: "0px 0px -8% 0px" }
+    );
+
+    document.querySelectorAll(".scroll-reveal").forEach(function (el) {
+      observer.observe(el);
+    });
+  } else {
+    document.querySelectorAll(".scroll-reveal").forEach(function (el) {
+      el.classList.add("is-visible");
+    });
+  }
+
+  initHeroTypewriter(reduceMotion);
 
   var lightbox = document.getElementById("lightbox");
   var lightboxImage = lightbox ? lightbox.querySelector(".lightbox__image") : null;
@@ -277,6 +284,77 @@
       toggle.click();
     }
   });
+
+  function initHeroTypewriter(preferReduce) {
+    var textEl = document.querySelector("[data-typewriter]");
+    if (!textEl || textEl.dataset.typewriterReady === "1") return;
+    textEl.dataset.typewriterReady = "1";
+
+    var live = document.querySelector(".hero__type-live");
+    var staticEl = document.querySelector(".hero__type-static");
+    var words = (textEl.getAttribute("data-words") || "")
+      .split("|")
+      .map(function (item) {
+        return item.trim();
+      })
+      .filter(Boolean);
+
+    if (!words.length) return;
+
+    if (preferReduce) {
+      if (staticEl) staticEl.hidden = false;
+      if (live) live.hidden = true;
+      return;
+    }
+
+    if (staticEl) staticEl.hidden = true;
+    if (live) live.hidden = false;
+
+    var wordIndex = 0;
+    var charIndex = 0;
+    var deleting = false;
+    var timer = null;
+
+    function tick() {
+      var word = words[wordIndex];
+      if (!deleting) {
+        charIndex += 1;
+        textEl.textContent = word.slice(0, charIndex);
+        if (charIndex >= word.length) {
+          deleting = true;
+          timer = window.setTimeout(tick, 1400);
+          return;
+        }
+        timer = window.setTimeout(tick, 85);
+        return;
+      }
+
+      charIndex -= 1;
+      textEl.textContent = word.slice(0, Math.max(charIndex, 0));
+      if (charIndex <= 0) {
+        deleting = false;
+        wordIndex = (wordIndex + 1) % words.length;
+        timer = window.setTimeout(tick, 280);
+        return;
+      }
+      timer = window.setTimeout(tick, 48);
+    }
+
+    tick();
+
+    document.addEventListener(
+      "visibilitychange",
+      function () {
+        if (document.hidden) {
+          if (timer) window.clearTimeout(timer);
+          return;
+        }
+        if (timer) window.clearTimeout(timer);
+        timer = window.setTimeout(tick, 200);
+      },
+      false
+    );
+  }
 
   function escapeHtml(value) {
     return String(value || "")
