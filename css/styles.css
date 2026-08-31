@@ -1102,6 +1102,18 @@ article.project-card {
   line-height: 1.45;
 }
 
+.project-card__status {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.project-card--in-dev {
+  cursor: default;
+}
+
 @media (max-width: 700px) {
   .project-card__media--bukvomore .project-pair {
     gap: 0.35rem;
@@ -1458,6 +1470,14 @@ article.project-card {
   text-transform: uppercase;
 }
 
+.competencies-note {
+  margin: 1.35rem 0 0;
+  max-width: 42rem;
+  color: var(--ink-soft);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
 /* Contact */
 .contact-grid {
   display: grid;
@@ -1472,26 +1492,93 @@ article.project-card {
   color: var(--ink-soft);
 }
 
+.contact-focus {
+  margin-top: 1.15rem;
+  color: var(--ink-soft);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
 .contact-slots {
   display: grid;
   gap: 0.8rem;
   list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .contact-slots li {
+  margin: 0;
+}
+
+.contact-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0.15rem 0.65rem;
+  width: 100%;
   padding: 1.1rem 1.2rem;
   border-radius: 16px;
   background: var(--bg-paper);
   border: 1px dashed var(--line-strong);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    background 0.22s var(--ease),
+    border-color 0.22s var(--ease);
 }
 
-.contact-slots b {
-  display: block;
-  margin-bottom: 0.2rem;
+a.contact-card {
+  cursor: pointer;
+}
+
+a.contact-card:hover,
+a.contact-card:focus-visible {
+  background: color-mix(in srgb, var(--bg-warm) 72%, var(--bg-paper));
+  border-color: var(--accent-line);
+}
+
+.contact-card--static {
+  cursor: default;
+}
+
+.contact-card__label {
+  grid-column: 1 / -1;
+  margin: 0;
   font-size: 0.78rem;
+  font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-faint);
+}
+
+.contact-card__value {
+  grid-column: 1;
+  margin: 0;
+  max-width: 100%;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.contact-card__arrow {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  color: var(--ink-faint);
+  font-size: 0.95rem;
+  line-height: 1;
+  transition: transform 0.22s var(--ease);
+}
+
+a.contact-card:hover .contact-card__arrow,
+a.contact-card:focus-visible .contact-card__arrow {
+  transform: translateX(3px);
+  color: var(--accent);
 }
 
 .placeholder-value {

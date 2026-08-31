@@ -101,16 +101,17 @@ window.PROJECTS = [
   },
   {
     id: "ai-assistant",
-    title: "",
-    type: "AI-помощник",
+    title: "AI-помощник",
+    type: "AI для гостевого дома «Отдых.23»",
     status: "",
     featured: false,
-    href: "/cases/ai-assistant.html",
+    noLink: true,
+    href: "",
     description: "",
-    image: null,
-    imageLabel: "Изображение проекта",
-    imageHint: "Файл: /images/ai-assistant.jpg",
-    placeholder: true,
-    linkLabel: "Подробнее"
+    image: "/images/otdyh23-ai-assistant-soon.png",
+    imageLabel: "Временное превью AI-помощника для гостевого дома «Отдых.23»",
+    imageFit: "full",
+    placeholder: false,
+    devStatus: "В разработке · будет опубликован после завершения тестирования"
   }
 ];

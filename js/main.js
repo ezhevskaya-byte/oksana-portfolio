@@ -127,6 +127,12 @@
           ? "<p>" + escapeHtml(project.description) + "</p>"
           : "";
 
+        var devStatus = "";
+        if (project.devStatus) {
+          devStatus =
+            '<p class="project-card__status">' + escapeHtml(project.devStatus) + "</p>";
+        }
+
         var done = "";
         if (project.doneLabel && project.doneText) {
           done =
@@ -172,15 +178,18 @@
           escapeHtml(title) +
           "</h3>" +
           description +
+          devStatus +
           done +
           detail +
           link +
           "</div>";
 
         var mediaBlock = '<div class="' + mediaClass + '">' + media + "</div>";
+        var cardClass = revealClass;
+        if (project.devStatus) cardClass += " project-card--in-dev";
 
         if (project.noLink) {
-          return '<article class="' + revealClass + '">' + mediaBlock + body + "</article>";
+          return '<article class="' + cardClass + '">' + mediaBlock + body + "</article>";
         }
 
         return (
