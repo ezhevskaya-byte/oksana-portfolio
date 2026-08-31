@@ -2,3 +2,5 @@ User-agent: *
 Allow: /
 Disallow: /cases/bot.html
 Disallow: /cases/ai-assistant.html
+
+Sitemap: https://ezhevskaya-byte.github.io/oksana-portfolio/sitemap.xml
