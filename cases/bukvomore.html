@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Кейс «БуквоМоре» — Оксана Ежевская</title>
-    <meta name="description" content="Образовательная web-игра «БуквоМоре» для детей 6–7 лет. Кейс в портфолио Оксаны Ежевской.">
+    <meta name="description" content="Развивающая web-игра «БуквоМоре» для детей 6–7 лет: морское приключение от знакомства с буквой к первым шагам в чтении.">
     <meta name="theme-color" content="#f4efe6">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css">
   </head>
-  <body>
+  <body class="case-page case-page--bukvomore">
     <a class="skip-link" href="#main">Перейти к содержимому</a>
     <header class="header">
       <div class="container header__inner">
@@ -35,51 +35,173 @@
     </header>
 
     <main id="main">
-      <header class="case-hero">
+      <header class="case-hero case-hero--bukvomore">
         <div class="container">
-          <a class="back-link" href="/#other-projects">← Все проекты</a>
-          <div class="case-kicker">
-            <span class="chip">Развивающая web-игра</span>
-            <span class="chip">Дети 6–7 лет</span>
-          </div>
+          <p class="case-eyebrow">Развивающая web-игра</p>
           <h1>БуквоМоре</h1>
-          <p class="case-lead">Образовательная web-игра для детей 6–7 лет. Интерактивный формат, в котором обучение собрано как digital-продукт, а не как статичная страница.</p>
+          <p class="case-lead">Развивающая web-игра для детей 6–7 лет, в которой знакомство с буквами, звуками и первыми слогами превращается в морское приключение. Ребёнок выбирает капитана, выполняет интерактивные задания и постепенно проходит путь от знакомства с буквой к первым шагам в чтении.</p>
+          <div class="case-kicker">
+            <span class="chip">Web-игра</span>
+            <span class="chip">Обучение</span>
+            <span class="chip">Дети 6–7 лет</span>
+            <span class="chip">Интерактив</span>
+          </div>
         </div>
       </header>
 
       <div class="container case-layout">
-        <figure class="media-frame case-media-wide">
-          <div class="media-placeholder">
-            <div>
-              <strong>Скриншот игры «БуквоМоре»</strong>
-              <span>Файл: /images/bukvomore.jpg</span>
-            </div>
-          </div>
-        </figure>
-
-        <article class="case-block">
-          <h2>О проекте</h2>
-          <p>Web-игра для младшего школьного возраста. Известно, что проект образовательный и рассчитан на детей 6–7 лет. Механика, визуальный язык и ссылка на игру будут добавлены.</p>
-          <p class="placeholder-note">Нужны: ссылка на игру, скриншоты ключевых экранов, кратко — чему учит и как устроен сценарий.</p>
+        <article class="case-block case-block--soft">
+          <h2>Сделать обучение частью приключения</h2>
+          <p>Задача проекта — создать цифровой формат, в котором обучение чтению не воспринимается ребёнком как набор однообразных упражнений. Материал разбивается на небольшие понятные этапы, а движение по ним объединяется игровым сценарием. Ребёнок не просто выполняет задания, а становится капитаном собственного морского путешествия.</p>
         </article>
 
-        <article class="case-block">
-          <h2>Задача</h2>
-          <p class="placeholder-value">Описание задачи будет добавлено.</p>
-        </article>
-
-        <article class="case-block">
-          <h2>Решение</h2>
-          <p class="placeholder-value">Описание игрового сценария будет добавлено.</p>
-        </article>
-
-        <div class="case-block case-cta">
-          <div>
-            <h2>Интерактивный формат</h2>
-            <p>Если нужна развивающая игра, презентация или другой интерактивный проект — можно обсудить идею.</p>
-          </div>
-          <a class="btn btn-primary" href="/#contact">Обсудить проект</a>
+        <div class="case-visuals case-visuals--shift" aria-label="Скриншоты проекта БуквоМоре">
+          <figure class="media-frame case-shot case-shot--primary">
+            <img
+              class="js-lightbox"
+              src="/images/bukvomore-main.png"
+              alt="Главный экран игры «БуквоМоре» с выбором капитана"
+              width="1183"
+              height="979"
+            >
+            <figcaption class="case-shot__caption">Главный экран и выбор капитана</figcaption>
+          </figure>
+          <figure class="media-frame case-shot case-shot--secondary">
+            <img
+              class="js-lightbox"
+              src="/images/bukvomore-game.png"
+              alt="Игровой экран «БуквоМоре»: задание на звук А"
+              width="1176"
+              height="892"
+              loading="lazy"
+            >
+            <figcaption class="case-shot__caption">Игровое задание на звук буквы</figcaption>
+          </figure>
         </div>
+
+        <article class="case-block case-route-block">
+          <h2>От буквы — к чтению</h2>
+          <ol class="case-route">
+            <li class="case-route__step">
+              <span class="case-route__num" aria-hidden="true">01</span>
+              <span class="case-route__text">Знакомство с буквой</span>
+            </li>
+            <li class="case-route__step">
+              <span class="case-route__num" aria-hidden="true">02</span>
+              <span class="case-route__text">Ребёнок слушает её звук</span>
+            </li>
+            <li class="case-route__step">
+              <span class="case-route__num" aria-hidden="true">03</span>
+              <span class="case-route__text">Находит нужную букву среди вариантов</span>
+            </li>
+            <li class="case-route__step">
+              <span class="case-route__num" aria-hidden="true">04</span>
+              <span class="case-route__text">Связывает букву со знакомым словом</span>
+            </li>
+            <li class="case-route__step">
+              <span class="case-route__num" aria-hidden="true">05</span>
+              <span class="case-route__text">Получает игровую награду</span>
+            </li>
+            <li class="case-route__step">
+              <span class="case-route__num" aria-hidden="true">06</span>
+              <span class="case-route__text">Постепенно переходит к следующим буквам, звукам и слогам</span>
+            </li>
+          </ol>
+        </article>
+
+        <article class="case-block">
+          <h2>Основные возможности</h2>
+          <ul class="case-feature-grid case-feature-grid--play">
+            <li class="case-feature">
+              <h3>Выбор капитана</h3>
+              <p>Перед началом игры ребёнок выбирает своего персонажа, и выбранный профиль сохраняется.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Игровой сценарий</h3>
+              <p>Обучающие задания объединены общей темой морского путешествия.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Озвучивание</h3>
+              <p>Инструкции и звуки букв можно услышать, что важно при обучении ребёнка чтению.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Интерактивные задания</h3>
+              <p>Ребёнок не просто смотрит материал, а взаимодействует с ним и выполняет задания.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Пошаговое обучение</h3>
+              <p>Материал даётся небольшими последовательными этапами: буква, звук, узнавание, слово и дальнейший переход к чтению.</p>
+            </li>
+            <li class="case-feature">
+              <h3>Сохранение прогресса</h3>
+              <p>Результаты прохождения сохраняются, поэтому обучение можно продолжить позже.</p>
+            </li>
+          </ul>
+        </article>
+
+        <article class="case-block case-lesson">
+          <h2>Как устроен один урок</h2>
+          <p class="case-lesson__lead">Пример — знакомство с буквой «А»</p>
+          <ol class="case-lesson__steps">
+            <li class="case-lesson__step">
+              <span class="case-lesson__num" aria-hidden="true">01</span>
+              <div class="case-lesson__body">
+                <h3>Знакомство</h3>
+                <p>Ребёнок видит новую букву и знакомится с ней.</p>
+              </div>
+            </li>
+            <li class="case-lesson__step">
+              <span class="case-lesson__num" aria-hidden="true">02</span>
+              <div class="case-lesson__body">
+                <h3>Слушаем</h3>
+                <p>Можно услышать звук буквы.</p>
+              </div>
+            </li>
+            <li class="case-lesson__step">
+              <span class="case-lesson__num" aria-hidden="true">03</span>
+              <div class="case-lesson__body">
+                <h3>Находим</h3>
+                <p>Ребёнок выбирает букву «А» среди предложенных вариантов.</p>
+              </div>
+            </li>
+            <li class="case-lesson__step">
+              <span class="case-lesson__num" aria-hidden="true">04</span>
+              <div class="case-lesson__body">
+                <h3>Связываем со словом</h3>
+                <p>Буква закрепляется через знакомое слово — «Арбуз».</p>
+              </div>
+            </li>
+            <li class="case-lesson__step">
+              <span class="case-lesson__num" aria-hidden="true">05</span>
+              <div class="case-lesson__body">
+                <h3>Награда</h3>
+                <p>После выполнения задания ребёнок получает подтверждение прохождения этапа.</p>
+              </div>
+            </li>
+          </ol>
+        </article>
+
+        <article class="case-block">
+          <h2>Что реализовано</h2>
+          <ul class="skill-grid case-implemented">
+            <li class="skill-card">Игровой сценарий</li>
+            <li class="skill-card">Выбор капитана</li>
+            <li class="skill-card">Профили игроков</li>
+            <li class="skill-card">Озвучивание инструкций и звуков</li>
+            <li class="skill-card">Интерактивные задания</li>
+            <li class="skill-card">Пошаговая структура уроков</li>
+            <li class="skill-card">Сохранение прогресса</li>
+            <li class="skill-card">Обучающий модуль буквы «А»</li>
+            <li class="skill-card">Адаптивный web-интерфейс</li>
+          </ul>
+        </article>
+
+        <article class="case-block case-block--soft">
+          <h2>Куда может развиваться БуквоМоре</h2>
+          <p>Проект задуман как развивающаяся обучающая система. Следующие этапы — расширение набора букв и уроков, переход от отдельных звуков к слогам и первым словам, новые игровые задания и развитие морского путешествия по мере обучения ребёнка.</p>
+        </article>
+
+        <a class="back-link case-back-end" href="/#projects">← Вернуться к проектам</a>
       </div>
     </main>
 
@@ -90,6 +212,14 @@
         <a href="/">На главную</a>
       </div>
     </footer>
+
+    <div class="lightbox" id="lightbox" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="Просмотр изображения проекта">
+      <button class="lightbox__close" type="button" aria-label="Закрыть просмотр изображения">&times;</button>
+      <figure class="lightbox__figure">
+        <img class="lightbox__image" src="" alt="">
+      </figure>
+    </div>
+
     <script src="/js/main.js"></script>
   </body>
 </html>

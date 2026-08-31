@@ -1669,6 +1669,209 @@ article.project-card {
   margin: 0.4rem 0 0;
 }
 
+/* BukvoMore case — livelier layout within the same design system */
+.case-page--bukvomore {
+  --case-sea: #3f6462;
+  --case-sea-soft: #e4eeeb;
+  --case-sea-line: #9bb5b0;
+}
+
+.case-page--bukvomore .case-hero--bukvomore {
+  position: relative;
+  padding-bottom: 2.8rem;
+  background:
+    radial-gradient(ellipse 70% 55% at 92% 8%, color-mix(in srgb, var(--case-sea-soft) 80%, transparent), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 6% 90%, color-mix(in srgb, var(--accent-soft) 55%, transparent), transparent 65%);
+}
+
+.case-page--bukvomore .case-eyebrow {
+  color: var(--case-sea);
+}
+
+.case-page--bukvomore .case-block--soft {
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--case-sea-soft) 45%, var(--bg-paper)),
+      var(--bg-paper) 62%
+    );
+}
+
+.case-visuals--shift {
+  gap: 1.15rem;
+}
+
+.case-visuals--shift .case-shot--primary {
+  background: color-mix(in srgb, var(--case-sea-soft) 55%, var(--bg-paper));
+}
+
+.case-visuals--shift .case-shot--secondary {
+  background: color-mix(in srgb, var(--bg-warm) 70%, var(--bg-paper));
+}
+
+.case-shot__caption {
+  margin: 0;
+  padding: 0.7rem 1rem 0.9rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+@media (min-width: 861px) {
+  .case-visuals--shift {
+    grid-template-columns: 1.12fr 0.88fr;
+    align-items: end;
+    gap: 1.2rem;
+  }
+
+  .case-visuals--shift .case-shot--secondary {
+    margin-bottom: 1.6rem;
+  }
+}
+
+.case-route-block {
+  overflow: hidden;
+}
+
+.case-route {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 1.15rem 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+
+.case-route__step {
+  position: relative;
+  min-width: 0;
+  padding: 0.95rem 0.75rem 1rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--case-sea-soft) 42%, var(--bg-paper));
+  border: 1px solid color-mix(in srgb, var(--case-sea-line) 55%, var(--line));
+}
+
+.case-route__step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 1.35rem;
+  right: -0.4rem;
+  z-index: 1;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-top: 2px solid var(--case-sea-line);
+  border-right: 2px solid var(--case-sea-line);
+  transform: rotate(45deg);
+  background: transparent;
+}
+
+.case-route__num {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: var(--case-sea);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1;
+}
+
+.case-route__text {
+  display: block;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.case-feature-grid--play .case-feature {
+  background: color-mix(in srgb, var(--case-sea-soft) 38%, var(--bg-paper));
+  border-color: color-mix(in srgb, var(--case-sea-line) 45%, var(--line));
+}
+
+.case-feature-grid--play .case-feature h3 {
+  color: color-mix(in srgb, var(--case-sea) 70%, var(--ink));
+}
+
+.case-lesson__lead {
+  margin: 0 0 1.15rem;
+  color: var(--case-sea);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.case-lesson__steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 0.35rem 0 0;
+  list-style: none;
+}
+
+.case-lesson__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0 0.85rem 0 0;
+  background: transparent;
+  border: 0;
+}
+
+.case-lesson__step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 0.72rem;
+  left: 2.1rem;
+  right: 0.35rem;
+  height: 1px;
+  background: color-mix(in srgb, var(--case-sea-line) 75%, var(--line));
+}
+
+.case-lesson__num {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--case-sea-soft) 70%, var(--bg-paper));
+  border: 1px solid color-mix(in srgb, var(--case-sea-line) 70%, var(--line));
+  color: var(--case-sea);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.case-lesson__body {
+  min-width: 0;
+}
+
+.case-lesson__steps h3 {
+  margin: 0 0 0.3rem;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.case-lesson__steps p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.case-page--bukvomore .case-implemented {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 /* Satin case — soft shop / textile presentation */
 .case-page--satin {
   --case-linen: #8a5a48;
@@ -2019,6 +2222,46 @@ article.project-card {
     grid-template-columns: 1fr 1fr;
   }
 
+
+  .case-route {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.75rem 0.85rem;
+  }
+
+  .case-route__step:not(:last-child)::after {
+    display: none;
+  }
+
+  .case-lesson__steps {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding-left: 0.15rem;
+  }
+
+  .case-lesson__step {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 0 0 1.15rem 0.15rem;
+  }
+
+  .case-lesson__step:last-child {
+    padding-bottom: 0;
+  }
+
+  .case-lesson__step:not(:last-child)::after {
+    top: 1.55rem;
+    left: 0.88rem;
+    right: auto;
+    width: 1px;
+    height: calc(100% - 1.55rem);
+    background: color-mix(in srgb, var(--case-sea-line) 75%, var(--line));
+  }
+
+  .case-page--bukvomore .case-implemented {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .case-path {
     grid-template-columns: 1fr 1fr 1fr;
     gap: 1rem 0.85rem;
@@ -2114,6 +2357,16 @@ article.project-card {
     grid-template-columns: 1fr;
   }
 
+
+  .case-route,
+  .case-lesson__steps {
+    grid-template-columns: 1fr;
+  }
+
+  .case-route__step {
+    padding: 0.95rem 1rem;
+  }
+
   .case-path {
     grid-template-columns: 1fr;
     gap: 0;
@@ -2139,6 +2392,10 @@ article.project-card {
     height: calc(100% - 1.55rem);
     background: color-mix(in srgb, var(--case-linen-line) 80%, var(--line));
   }
+  .case-page--bukvomore .case-implemented {
+    grid-template-columns: 1fr;
+  }
+
 
 
   .story-flow {
