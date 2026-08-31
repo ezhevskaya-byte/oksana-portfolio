@@ -296,20 +296,19 @@
   });
 
   function initHeroTypewriter(preferReduce) {
-    var textEl = document.querySelector("[data-typewriter]");
+    var root = document.querySelector(".hero__type");
+    if (!root) return;
+
+    var textEl = root.querySelector("[data-typewriter]");
+    var live = root.querySelector(".hero__type-live");
+    var staticEl = root.querySelector(".hero__type-static");
+    var cursor = root.querySelector(".hero__type-cursor");
+
     if (!textEl || textEl.dataset.typewriterReady === "1") return;
     textEl.dataset.typewriterReady = "1";
 
-    var live = document.querySelector(".hero__type-live");
-    var staticEl = document.querySelector(".hero__type-static");
-    var words = (textEl.getAttribute("data-words") || "")
-      .split("|")
-      .map(function (item) {
-        return item.trim();
-      })
-      .filter(Boolean);
-
-    if (!words.length) return;
+    var fullText = (textEl.getAttribute("data-text") || textEl.textContent || "").trim();
+    if (!fullText) return;
 
     if (preferReduce) {
       if (staticEl) staticEl.hidden = false;
@@ -318,49 +317,96 @@
     }
 
     if (staticEl) staticEl.hidden = true;
-    if (live) live.hidden = false;
-
-    var wordIndex = 0;
-    var charIndex = 0;
-    var deleting = false;
-    var timer = null;
-
-    function tick() {
-      var word = words[wordIndex];
-      if (!deleting) {
-        charIndex += 1;
-        textEl.textContent = word.slice(0, charIndex);
-        if (charIndex >= word.length) {
-          deleting = true;
-          timer = window.setTimeout(tick, 1400);
-          return;
-        }
-        timer = window.setTimeout(tick, 85);
-        return;
-      }
-
-      charIndex -= 1;
-      textEl.textContent = word.slice(0, Math.max(charIndex, 0));
-      if (charIndex <= 0) {
-        deleting = false;
-        wordIndex = (wordIndex + 1) % words.length;
-        timer = window.setTimeout(tick, 280);
-        return;
-      }
-      timer = window.setTimeout(tick, 48);
+    if (live) {
+      live.hidden = false;
+      live.classList.remove("is-fading");
+      live.style.opacity = "";
     }
 
-    tick();
+    var charIndex = 0;
+    var timer = null;
+    var charDelay = 55;
+    var holdDelay = 4000;
+    var pauseDelay = 2000;
+    var fadeDuration = 600;
+    var phase = "typing";
+
+    function clearTimer() {
+      if (timer) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+    }
+
+    function setCursorVisible(visible) {
+      if (cursor) cursor.hidden = !visible;
+    }
+
+    function startCycle() {
+      phase = "typing";
+      charIndex = 0;
+      textEl.textContent = "";
+      if (live) {
+        live.classList.remove("is-fading");
+        live.style.opacity = "1";
+      }
+      setCursorVisible(true);
+      typeNext();
+    }
+
+    function typeNext() {
+      charIndex += 1;
+      textEl.textContent = fullText.slice(0, charIndex);
+      if (charIndex < fullText.length) {
+        timer = window.setTimeout(typeNext, charDelay);
+        return;
+      }
+
+      phase = "hold";
+      setCursorVisible(false);
+      timer = window.setTimeout(beginFade, holdDelay);
+    }
+
+    function beginFade() {
+      phase = "fade";
+      if (live) live.classList.add("is-fading");
+      timer = window.setTimeout(afterFade, fadeDuration);
+    }
+
+    function afterFade() {
+      phase = "pause";
+      textEl.textContent = "";
+      if (live) {
+        live.classList.remove("is-fading");
+        live.style.opacity = "0";
+      }
+      timer = window.setTimeout(function () {
+        if (live) live.style.opacity = "1";
+        startCycle();
+      }, pauseDelay);
+    }
+
+    startCycle();
 
     document.addEventListener(
       "visibilitychange",
       function () {
         if (document.hidden) {
-          if (timer) window.clearTimeout(timer);
+          clearTimer();
           return;
         }
-        if (timer) window.clearTimeout(timer);
-        timer = window.setTimeout(tick, 200);
+        if (phase === "typing") {
+          timer = window.setTimeout(typeNext, charDelay);
+        } else if (phase === "hold") {
+          timer = window.setTimeout(beginFade, holdDelay);
+        } else if (phase === "fade") {
+          timer = window.setTimeout(afterFade, fadeDuration);
+        } else if (phase === "pause") {
+          timer = window.setTimeout(function () {
+            if (live) live.style.opacity = "1";
+            startCycle();
+          }, pauseDelay);
+        }
       },
       false
     );
@@ -461,6 +507,18 @@
     var charDelay = 52;
     var activeCopy = getCopy();
     var text = activeCopy.lead + activeCopy.accent;
+    var scrollHost = root.closest(".scroll-reveal");
+
+    function readyToAnimate() {
+      return !scrollHost || scrollHost.classList.contains("is-visible");
+    }
+
+    function tryStart() {
+      if (started || !readyToAnimate()) return;
+      observer.disconnect();
+      if (revealWatcher) revealWatcher.disconnect();
+      startTyping();
+    }
 
     function finish() {
       root.classList.add("is-complete");
@@ -490,15 +548,25 @@
     var observer = new IntersectionObserver(
       function (entries) {
         entries.forEach(function (entry) {
-          if (!entry.isIntersecting || started) return;
-          observer.disconnect();
-          startTyping();
+          if (!entry.isIntersecting) return;
+          tryStart();
         });
       },
-      { threshold: 0.32, rootMargin: "0px 0px -6% 0px" }
+      { threshold: 0.12, rootMargin: "0px 0px -4% 0px" }
     );
 
-    observer.observe(root.closest(".pullquote") || root);
+    observer.observe(root);
+
+    var revealWatcher = null;
+    if (scrollHost) {
+      revealWatcher = new MutationObserver(tryStart);
+      revealWatcher.observe(scrollHost, {
+        attributes: true,
+        attributeFilter: ["class"]
+      });
+    }
+
+    tryStart();
 
     document.addEventListener(
       "visibilitychange",

@@ -18,7 +18,9 @@
     <meta name="twitter:title" content="Оксана Ежевская — сайты и цифровые продукты">
     <meta name="twitter:description" content="Создаю сайты, интернет-магазины, сервисы, приложения, ботов и AI-помощников для задач бизнеса. Анализирую аудиторию и пользовательский путь. Экспертиза в гостевом бизнесе.">
     <meta name="twitter:image" content="https://ezhevskaya-byte.github.io/oksana-portfolio/images/oksana.jpg">
+    <link rel="icon" href="/oksana-portfolio/favicon.ico" sizes="any">
     <link rel="icon" href="/oksana-portfolio/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/oksana-portfolio/favicon.png" type="image/png" sizes="32x32">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -64,8 +66,11 @@
     <header class="header">
       <div class="container header__inner">
         <a class="logo" href="/oksana-portfolio/">
-          <span class="logo__name">Оксана Ежевская</span>
-          <span class="logo__note">Сайты и digital-продукты</span>
+          <img class="logo__mark" src="/oksana-portfolio/images/oksana-ezhevskaya-monogram-transparent.png" alt="" width="1402" height="1122" decoding="async">
+          <span class="logo__text">
+            <span class="logo__name">Оксана Ежевская</span>
+            <span class="logo__note">Сайты и digital-продукты</span>
+          </span>
         </a>
         <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
           <span class="nav-toggle__icon" aria-hidden="true"></span>
@@ -84,73 +89,75 @@
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
         <div class="container hero__grid">
-          <div class="reveal">
-            <p class="hero__name">Оксана Ежевская</p>
-            <h1 id="hero-title">Создаю сайты и цифровые продукты с пониманием задач бизнеса</h1>
+          <div class="reveal hero__content">
+            <h1 id="hero-title">Создаю сайты и цифровые решения, понимая задачи бизнеса изнутри</h1>
             <p class="hero__type">
-              <span class="hero__type-static">Сайты · веб-сервисы · AI-помощники · Приложения</span>
+              <span class="hero__type-static">Сайты · AI-помощники · Приложения</span>
               <span class="hero__type-live" hidden>
-                <span class="hero__type-slot">
-                  <span class="hero__type-text" data-typewriter data-words="Сайты|веб-сервисы|AI-помощники|Приложения">Сайты</span><span class="hero__type-cursor" aria-hidden="true">|</span>
-                </span>
+                <span class="hero__type-text" data-typewriter data-text="Сайты · AI-помощники · Приложения"></span><span class="hero__type-cursor" aria-hidden="true">|</span>
               </span>
             </p>
-            <p class="hero__text">Сначала разбираюсь в задаче, аудитории и особенностях бизнеса, а затем подбираю решение: сайт, приложение, бот или другой цифровой продукт.</p>
+            <p class="hero__text">Не начинаю с шаблона и дизайна. Сначала изучаю бизнес, аудиторию и процессы — затем создаю подходящее решение: сайт, приложение, AI-помощника или другой цифровой инструмент.</p>
             <div class="hero__actions">
               <a class="btn btn-primary" href="#projects">Посмотреть проекты</a>
               <a class="btn btn-ghost" href="#contact">Обсудить проект</a>
             </div>
             <p class="hero__bonus"><span>При заказе сайта — <strong>разбор объекта, целевой аудитории и рекомендации по позиционированию в подарок</strong>.</span></p>
           </div>
-          <aside class="hero-panel reveal reveal-delay-2" aria-label="Кратко об опыте">
-            <p class="hero-panel__label">Опыт в гостевом бизнесе</p>
-            <p class="hero-panel__year">6 лет</p>
-            <p class="hero-panel__caption">Продвижение, бронирования, агрегаторы, работа с гостями и ежедневные задачи объекта размещения.</p>
-            <span class="hero-panel__mark" aria-hidden="true">ОЕ</span>
-          </aside>
+          <div class="hero__brand-mark reveal reveal-delay-2" aria-label="Фирменный знак Оксаны Ежевской">
+            <img class="hero__brand-mark-image" src="/oksana-portfolio/images/oksana-ezhevskaya-logo-transparent.png" alt="Монограмма Оксаны Ежевской" width="1402" height="1122">
+          </div>
         </div>
       </section>
 
-      <section class="section" id="expertise" aria-labelledby="expertise-title">
+      <section class="section section--expertise" id="expertise" aria-labelledby="expertise-title">
         <div class="container">
-          <div class="section-head scroll-reveal">
+          <div class="section-head section-head--expertise scroll-reveal">
             <p class="eyebrow">Экспертиза в гостевом бизнесе</p>
-            <h2 class="section-title" id="expertise-title">Мне не нужно объяснять ваш бизнес с нуля</h2>
+            <h2 class="section-title section-title--expertise" id="expertise-title">Мне не нужно объяснять ваш бизнес с нуля</h2>
             <p class="lead">Я смотрю на сайт одновременно глазами владельца объекта и будущего гостя: понимаю, как живёт размещение каждый день и что важно человеку, который выбирает, где остановиться.</p>
           </div>
-          <div class="expertise-grid">
-            <blockquote class="pullquote scroll-reveal">
-              <p
-                class="pullquote__text"
-                data-expertise-typewriter
-              >
-                <span class="pullquote__text-measure" aria-hidden="true">
-                  <span class="pullquote__compose pullquote__compose--desktop">
-                    <span class="pullquote__line pullquote__lead">Работа начинается</span>
-                    <span class="pullquote__line pullquote__lead">не с шаблона и дизайна,</span>
-                    <span class="pullquote__line pullquote__accent">а с понимания бизнеса,</span>
-                    <span class="pullquote__line pullquote__accent">аудитории и задачи</span>
-                    <span class="pullquote__line pullquote__accent">будущего продукта.</span>
+          <div class="expertise-body">
+            <div class="expertise-pair">
+              <blockquote class="pullquote pullquote--approach scroll-reveal">
+                <p
+                  class="pullquote__text"
+                  data-expertise-typewriter
+                >
+                  <span class="pullquote__text-measure" aria-hidden="true">
+                    <span class="pullquote__compose pullquote__compose--desktop">
+                      <span class="pullquote__line pullquote__lead">Работа начинается</span>
+                      <span class="pullquote__line pullquote__lead">не с шаблона и дизайна,</span>
+                      <span class="pullquote__line pullquote__accent">а с понимания бизнеса,</span>
+                      <span class="pullquote__line pullquote__accent">аудитории и задачи</span>
+                      <span class="pullquote__line pullquote__accent">будущего продукта.</span>
+                    </span>
+                    <span class="pullquote__compose pullquote__compose--flow">
+                      <span class="pullquote__lead">Работа начинается не с шаблона и дизайна,</span><span class="pullquote__accent"> а с понимания бизнеса, аудитории и задачи будущего продукта.</span>
+                    </span>
                   </span>
-                  <span class="pullquote__compose pullquote__compose--flow">
-                    <span class="pullquote__lead">Работа начинается не с шаблона и дизайна,</span><span class="pullquote__accent"> а с понимания бизнеса, аудитории и задачи будущего продукта.</span>
+                  <span class="pullquote__text-overlay">
+                    <span class="pullquote__text-live" aria-live="polite"></span>
                   </span>
-                </span>
-                <span class="pullquote__text-overlay">
-                  <span class="pullquote__text-live" aria-live="polite"></span>
-                </span>
-              </p>
-              <span class="pullquote__caption">Гостевой бизнес — моя отдельная практическая экспертиза. С цифровыми задачами работаю и в других сферах.</span>
-            </blockquote>
-            <ul class="experience-list scroll-reveal">
-              <li>Продвижение</li>
-              <li>Бронирования</li>
-              <li>Агрегаторы</li>
-              <li>Социальные сети</li>
-              <li>Работа с гостями до бронирования</li>
-              <li>Встреча и размещение</li>
-              <li>Сопровождение гостей</li>
-              <li>Ежедневные задачи объекта размещения</li>
+                </p>
+                <span class="pullquote__caption">Гостевой бизнес — моя отдельная практическая экспертиза. С цифровыми задачами работаю и в других сферах.</span>
+              </blockquote>
+              <aside class="hero-panel hero-panel--experience scroll-reveal" aria-label="Опыт в гостевом бизнесе">
+                <p class="hero-panel__label">Опыт в гостевом бизнесе</p>
+                <p class="hero-panel__year">6 лет</p>
+                <p class="hero-panel__caption">Я знаю не только разработку, но и реальные задачи владельца: продвижение, бронирования, общение с гостями, работа агрегаторов и ежедневные процессы объекта размещения.</p>
+              </aside>
+            </div>
+            <p class="expertise-practice-label scroll-reveal">Что я знаю не по теории</p>
+            <ul class="experience-list experience-list--practice scroll-reveal">
+              <li><span class="experience-list__num" aria-hidden="true">01</span><span class="experience-list__text">Продвижение</span></li>
+              <li><span class="experience-list__num" aria-hidden="true">02</span><span class="experience-list__text">Бронирования</span></li>
+              <li><span class="experience-list__num" aria-hidden="true">03</span><span class="experience-list__text">Агрегаторы</span></li>
+              <li><span class="experience-list__num" aria-hidden="true">04</span><span class="experience-list__text">Социальные сети</span></li>
+              <li><span class="experience-list__num" aria-hidden="true">05</span><span class="experience-list__text">Работа с гостями до бронирования</span></li>
+              <li><span class="experience-list__num" aria-hidden="true">06</span><span class="experience-list__text">Встреча и размещение</span></li>
+              <li><span class="experience-list__num" aria-hidden="true">07</span><span class="experience-list__text">Сопровождение гостей</span></li>
+              <li><span class="experience-list__num" aria-hidden="true">08</span><span class="experience-list__text">Ежедневные задачи объекта размещения</span></li>
             </ul>
           </div>
         </div>
@@ -195,6 +202,8 @@
             <div>
               <p class="eyebrow">Главный кейс</p>
               <h2 class="section-title" id="featured-title">Отдых.23</h2>
+              <p class="lead"><strong>Реальный проект работающего гостевого дома</strong></p>
+              <p class="lead">Создана цифровая экосистема: сайт, приложение для гостей и AI-помощник.</p>
               <p class="lead">Сайт и приложение для действующего гостевого дома «Отдых.23». Проект создан на основе реальных задач бизнеса — от выбора размещения и бронирования до подготовки гостя к поездке и сопровождения во время отдыха.</p>
               <div class="featured__meta">
                 <span class="chip">Гостевой дом</span>
@@ -408,6 +417,7 @@
             <p>Именно собственный бизнес привёл меня к современным технологиям. Продвижение, бронирования, работа с агрегаторами и социальными сетями, общение с гостями и ежедневные процессы объекта показали мне, насколько технологии могут облегчать работу и улучшать клиентский путь.</p>
             <p>Постепенно к практическому опыту добавились веб-разработка, AI-инструменты и промпт-инжиниринг. Сначала я применяла их для собственных задач, а затем начала создавать сайты, веб-сервисы, приложения и AI-помощников как самостоятельные цифровые продукты.</p>
             <p>Поэтому, начиная новый проект, я смотрю на него не только со стороны интерфейса или кода. Мне важно понять бизнес, его аудиторию, процессы и реальную задачу — и только после этого выбрать подходящее решение.</p>
+            <p>Я соединяю опыт владельца бизнеса и навыки разработки, поэтому смотрю на проект не только глазами создателя, но и глазами человека, который будет им пользоваться.</p>
             <ul class="about-facts">
               <li>Юриспруденция + экономика</li>
               <li>Два диплома с отличием</li>
