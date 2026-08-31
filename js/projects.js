@@ -9,7 +9,7 @@ window.PROJECTS = [
   {
     id: "otdyh-23",
     title: "Отдых.23",
-    type: "Сайт и digital-среда гостевого дома",
+    type: "Сайт и цифровая среда гостевого дома",
     status: "Действующий объект",
     featured: true,
     href: "/cases/otdyh-23.html",
