@@ -33,8 +33,19 @@ function mockRequest(headers) {
 assert("DEFAULT_MODEL is gpt-5.4-mini", DEFAULT_MODEL === "gpt-5.4-mini");
 assert("message limit 4000", LIMITS.maxMessageChars === 4000);
 assert("allowed origins include production + local", ALLOWED_ORIGINS.length === 3);
-assert("runtime prompt is compact", RUNTIME_INSTRUCTIONS.length < 4500);
+assert("runtime prompt is compact", RUNTIME_INSTRUCTIONS.length < 5500);
 assert("runtime prompt forbids system leak", /system prompt/i.test(RUNTIME_INSTRUCTIONS));
+assert("runtime names Mark", /Марк/.test(RUNTIME_INSTRUCTIONS));
+assert("runtime declares AI assistant", /AI-помощник/.test(RUNTIME_INSTRUCTIONS));
+assert("runtime requires first-session intro", /Первая реплика|первой реплике|history пустой/i.test(RUNTIME_INSTRUCTIONS));
+assert(
+  "runtime bans premature architecture",
+  /НЕЛЬЗЯ выдавать архитектуру|не выдавать архитектуру|До phase=recommend/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime has diagnostic minimum",
+  /Минимум диагностики|путь к целевому действию/i.test(RUNTIME_INSTRUCTIONS)
+);
 
 assert(
   "empty message rejected",
