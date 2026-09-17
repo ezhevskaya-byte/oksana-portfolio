@@ -2,7 +2,7 @@
 
 Персональный сайт-портфолио: **сайты и цифровые решения для бизнеса**.
 
-**Сайт:** [ezhevskaya-byte.github.io/oksana-portfolio](https://ezhevskaya-byte.github.io/oksana-portfolio/)
+**Сайт:** [ezhevskaya.ru](https://ezhevskaya.ru/)
 
 ## О проекте
 
@@ -27,7 +27,8 @@
 - CSS3
 - JavaScript
 - SEO (метаданные, Open Graph, sitemap, robots.txt)
-- GitHub Pages
+- GitHub (репозиторий и история версий)
+- Production: ezhevskaya.ru
 
 ## Проекты
 
@@ -35,35 +36,35 @@
 
 Цифровая экосистема для действующего гостевого дома: сайт, приложение для гостей и AI-помощник, который помогает отвечать на вопросы и сопровождать гостя до поездки.
 
-[Работающий сайт — otdyh23.ru](https://otdyh23.ru) · [Кейс](https://ezhevskaya-byte.github.io/oksana-portfolio/cases/otdyh-23.html)
+[Работающий сайт — otdyh23.ru](https://otdyh23.ru) · [Кейс](https://ezhevskaya.ru/cases/otdyh-23.html)
 
 ### Сатин
 
 Интернет-магазин домашнего текстиля: каталог, карточки товаров, корзина и оформление заказа.
 
-[Кейс](https://ezhevskaya-byte.github.io/oksana-portfolio/cases/satin.html)
+[Кейс](https://ezhevskaya.ru/cases/satin.html)
 
 ### БуквоМоре
 
 Развивающая веб-игра для детей 6–7 лет: знакомство с буквами и звуками через морское приключение.
 
-[Кейс](https://ezhevskaya-byte.github.io/oksana-portfolio/cases/bukvomore.html)
+[Кейс](https://ezhevskaya.ru/cases/bukvomore.html)
 
 ### Помощник «Отдых.23»
 
 Бот для гостевого дома: ответы на вопросы гостей, подбор категории комнаты, передача запроса администратору.
 
-[Кейс](https://ezhevskaya-byte.github.io/oksana-portfolio/cases/otdyh23-bot.html)
+[Кейс](https://ezhevskaya.ru/cases/otdyh23-bot.html)
 
 ### Семейный бюджет
 
 Веб-сервис для ведения и анализа семейного бюджета: доходы, расходы, цели и рекомендации.
 
-[Кейс](https://ezhevskaya-byte.github.io/oksana-portfolio/cases/family-budget.html)
+[Кейс](https://ezhevskaya.ru/cases/family-budget.html)
 
 ## Запуск
 
-**Онлайн:** [https://ezhevskaya-byte.github.io/oksana-portfolio/](https://ezhevskaya-byte.github.io/oksana-portfolio/)
+**Онлайн:** [https://ezhevskaya.ru/](https://ezhevskaya.ru/)
 
 **Локально:**
 
@@ -71,7 +72,7 @@
 node server.js
 ```
 
-Открыть: [http://localhost:5173/oksana-portfolio/](http://localhost:5173/oksana-portfolio/)
+Открыть: [http://localhost:5173/](http://localhost:5173/)
 
 ## Автор
 

@@ -12,7 +12,7 @@ window.PROJECTS = [
     type: "Сайт и цифровая среда гостевого дома",
     status: "Действующий объект",
     featured: true,
-    href: "/oksana-portfolio/cases/otdyh-23.html",
+    href: "/cases/otdyh-23.html",
     description:
       "Реальный гостевой дом: сайт объекта и дальнейшее развитие среды для гостей после бронирования.",
     image: null,
@@ -29,12 +29,12 @@ window.PROJECTS = [
     href: "",
     description:
       "Онлайн-продолжение офлайн-магазина домашнего текстиля: сайт знакомит покупателя с ассортиментом и позволяет выбрать и приобрести основные категории товаров — постельное бельё, одеяла, подушки, полотенца и другой текстиль для дома. Продуман путь покупателя от просмотра каталога и карточки товара до корзины и оформления заказа.",
-    image: "/oksana-portfolio/images/satin-site.jpg",
+    image: "/images/satin-site.jpg",
     imageLabel: "Первый экран сайта интернет-магазина «Сатин»",
     imageFit: "satin",
     doneLabel: "Что реализовано",
     doneText: "Каталог товаров · карточки товаров · корзина · оформление заказа · адаптивный интерфейс",
-    detailHref: "/oksana-portfolio/cases/satin.html",
+    detailHref: "/cases/satin.html",
     detailLabel: "Подробнее о проекте"
   },
   {
@@ -47,14 +47,14 @@ window.PROJECTS = [
     href: "",
     description:
       "Обучение чтению превращено в морское приключение: ребёнок выбирает капитана, проходит игровые этапы, знакомится с буквами и звуками и постепенно переходит к первым слогам. Сценарий построен так, чтобы удерживать интерес ребёнка и давать новый материал небольшими понятными шагами.",
-    image: "/oksana-portfolio/images/bukvomore-main.png",
-    imageSecondary: "/oksana-portfolio/images/bukvomore-game.png",
+    image: "/images/bukvomore-main.png",
+    imageSecondary: "/images/bukvomore-game.png",
     imageLabel: "Главный экран игры «БуквоМоре» с выбором капитана",
     imageSecondaryLabel: "Игровой экран «БуквоМоре»: задание на звук А",
     mediaLayout: "pair",
     doneLabel: "Что реализовано",
     doneText: "Игровой сценарий · выбор персонажа · озвучивание · интерактивные задания · сохранение прогресса",
-    detailHref: "/oksana-portfolio/cases/bukvomore.html",
+    detailHref: "/cases/bukvomore.html",
     detailLabel: "Подробнее о проекте"
   },
   {
@@ -67,15 +67,15 @@ window.PROJECTS = [
     href: "",
     description:
       "Цифровой помощник для гостевого дома, который берёт на себя часть первичного общения с потенциальными гостями. Отвечает на вопросы об объекте и условиях проживания, учитывает состав гостей и помогает подобрать подходящую категорию комнаты. Сейчас работает в MAX, в дальнейшем планируется подключение Telegram и VK.",
-    image: "/oksana-portfolio/images/otdyh23-bot-assistant.jpg",
-    imageSecondary: "/oksana-portfolio/images/otdyh23-bot-max.png",
+    image: "/images/otdyh23-bot-assistant.jpg",
+    imageSecondary: "/images/otdyh23-bot-max.png",
     imageLabel: "Фирменный образ помощника «Отдых.23»",
     imageSecondaryLabel: "Диалог с помощником «Отдых.23» в MAX",
     mediaLayout: "bot",
     doneLabel: "Что реализовано",
     doneText:
       "База знаний · диалог с гостем · подбор категории комнаты · сценарии ответов · передача запроса администратору",
-    detailHref: "/oksana-portfolio/cases/otdyh23-bot.html",
+    detailHref: "/cases/otdyh23-bot.html",
     detailLabel: "Подробнее о проекте"
   },
   {
@@ -88,15 +88,15 @@ window.PROJECTS = [
     href: "",
     description:
       "Сервис для ведения и анализа семейного бюджета: объединяет доходы и расходы, показывает реальный остаток, структуру трат и долю сбережений. Пользователь может задать лимит расходов и цель накоплений, сравнить результаты за 3, 6, 9 или 12 месяцев. На основе данных сервис показывает динамику бюджета и формирует рекомендации по оптимизации расходов.",
-    image: "/oksana-portfolio/images/family-budget-main.png",
-    imageSecondary: "/oksana-portfolio/images/family-budget-analysis.png",
+    image: "/images/family-budget-main.png",
+    imageSecondary: "/images/family-budget-analysis.png",
     imageLabel: "Главный экран сервиса «Семейный бюджет» с показателями и структурой расходов",
     imageSecondaryLabel: "Блок анализа бюджета и рекомендаций сервиса «Семейный бюджет»",
     mediaLayout: "budget",
     doneLabel: "Что реализовано",
     doneText:
       "Учёт доходов и расходов · категории трат · финансовые цели · анализ за 3–12 месяцев · структура расходов · автоматические рекомендации · сохранение данных",
-    detailHref: "/oksana-portfolio/cases/family-budget.html",
+    detailHref: "/cases/family-budget.html",
     detailLabel: "Подробнее о проекте"
   },
   {
@@ -108,7 +108,7 @@ window.PROJECTS = [
     noLink: true,
     href: "",
     description: "",
-    image: "/oksana-portfolio/images/otdyh23-ai-assistant-soon.png",
+    image: "/images/otdyh23-ai-assistant-soon.png",
     imageLabel: "Временное превью AI-помощника для гостевого дома «Отдых.23»",
     imageFit: "full",
     placeholder: false,
