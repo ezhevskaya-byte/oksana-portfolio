@@ -1,0 +1,6 @@
+# OpenAI API key — set only via Cloudflare secrets / local .dev.vars
+# Never commit the real key.
+OPENAI_API_KEY=
+
+# Optional override (defaults to gpt-5.4-mini in wrangler.toml / code)
+# OPENAI_MODEL=gpt-5.4-mini

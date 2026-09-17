@@ -1,0 +1,15 @@
+{
+  "name": "smart-brief-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node --check src/index.js && node --check src/config.js && node --check src/cors.js && node --check src/validate.js && node --check src/prompt.js && node --check src/openai.js && node --check src/rateLimit.js",
+    "test": "node scripts/self-check.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

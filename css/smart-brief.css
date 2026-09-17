@@ -318,6 +318,58 @@
   color: var(--accent);
 }
 
+.sb-chat {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.25rem;
+  max-height: min(52vh, 28rem);
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scroll-behavior: smooth;
+}
+
+.sb-msg {
+  max-width: min(100%, 36rem);
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  line-height: 1.55;
+  font-size: 0.98rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sb-msg--user {
+  justify-self: end;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-paper));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+}
+
+.sb-msg--assistant {
+  justify-self: start;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--bg-paper) 88%, transparent);
+  border: 1px solid var(--line);
+}
+
+.sb-msg--loading {
+  justify-self: start;
+  color: var(--muted);
+  font-style: italic;
+  border: 1px dashed var(--line);
+  background: transparent;
+}
+
+.sb-textarea--reply {
+  min-height: 7.5rem;
+  margin-top: 1rem;
+}
+
+.sb-panel.is-busy .sb-actions .btn-primary {
+  pointer-events: none;
+  opacity: 0.72;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .sb-mode:hover {
     transform: translateY(-2px);

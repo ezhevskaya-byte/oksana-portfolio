@@ -178,7 +178,7 @@
 
             <div class="sb-actions">
               <button class="btn btn-primary" type="button" data-sb-submit-write>
-                Получить предварительную концепцию
+                Продолжить
               </button>
               <button class="btn btn-ghost" type="button" data-sb-back-intro>
                 Назад к выбору
@@ -186,19 +186,38 @@
             </div>
           </div>
 
-          <div class="sb-stage" data-sb-stage="result" hidden>
-            <p class="eyebrow">Готово</p>
-            <h2 class="sb-stage__title" id="sb-result-title">Ваша задача принята</h2>
+          <div class="sb-stage" data-sb-stage="dialogue" hidden>
+            <p class="eyebrow">Диалог со Smart Brief</p>
+            <h2 class="sb-stage__title" id="sb-dialogue-title">Давайте разберёмся в задаче</h2>
             <p class="sb-lead">
-              На основе вашего описания можно подготовить предварительную концепцию проекта:
+              Я уточню только то, что действительно поможет предложить подходящее решение.
             </p>
-            <ul class="sb-result-list">
-              <li>структура решения;</li>
-              <li>основные функции;</li>
-              <li>рекомендации по развитию.</li>
-            </ul>
+
+            <div class="sb-chat" data-sb-chat aria-live="polite" aria-relevant="additions"></div>
+
+            <p class="sb-field-note" data-sb-error role="alert" hidden>
+              Не удалось получить ответ. Попробуйте ещё раз.
+            </p>
+
+            <label class="sb-field" for="sb-reply-text">
+              <span class="sr-only">Ваш ответ</span>
+              <textarea
+                class="sb-textarea sb-textarea--reply"
+                id="sb-reply-text"
+                name="reply"
+                rows="4"
+                aria-invalid="false"
+                placeholder="Можете ответить своими словами…"
+              ></textarea>
+            </label>
+
             <div class="sb-actions">
-              <a class="btn btn-primary" href="/#contact">Обсудить проект с Оксаной</a>
+              <button class="btn btn-primary" type="button" data-sb-send-reply>
+                Отправить
+              </button>
+              <a class="btn btn-ghost" href="/#contact" data-sb-contact hidden>
+                Обсудить с Оксаной
+              </a>
               <button class="btn btn-ghost" type="button" data-sb-back-intro>
                 Начать заново
               </button>
@@ -216,6 +235,13 @@
       </div>
     </footer>
 
+    <script>
+      window.SMART_BRIEF_CONFIG = {
+        /* После деплоя Worker укажите полный URL endpoint, например:
+           https://smart-brief-api.<account>.workers.dev/api/chat */
+        apiUrl: ""
+      };
+    </script>
     <script src="/js/main.js"></script>
     <script src="/js/smart-brief.js"></script>
   </body>
