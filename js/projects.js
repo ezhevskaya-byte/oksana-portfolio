@@ -16,8 +16,7 @@ window.PROJECTS = [
     description:
       "Реальный гостевой дом: сайт объекта и дальнейшее развитие среды для гостей после бронирования.",
     image: null,
-    imageLabel: "Скриншот сайта «Отдых.23»",
-    imageHint: "Файл: /images/otdyh-23-site.jpg"
+    imageLabel: "Скриншот сайта «Отдых.23»"
   },
   {
     id: "satin",
