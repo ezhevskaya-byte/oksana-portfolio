@@ -37,14 +37,43 @@ assert("runtime prompt is compact", RUNTIME_INSTRUCTIONS.length < 5500);
 assert("runtime prompt forbids system leak", /system prompt/i.test(RUNTIME_INSTRUCTIONS));
 assert("runtime names Mark", /Марк/.test(RUNTIME_INSTRUCTIONS));
 assert("runtime declares AI assistant", /AI-помощник/.test(RUNTIME_INSTRUCTIONS));
-assert("runtime requires first-session intro", /Первая реплика|первой реплике|history пустой/i.test(RUNTIME_INSTRUCTIONS));
+assert("runtime requires first-session intro", /Intro|1-й ответ|первой реплике|history/i.test(RUNTIME_INSTRUCTIONS));
 assert(
   "runtime bans premature architecture",
-  /НЕЛЬЗЯ выдавать архитектуру|не выдавать архитектуру|До phase=recommend/i.test(RUNTIME_INSTRUCTIONS)
+  /Premature ban|НЕЛЬЗЯ выдавать архитектуру|не выдавать архитектуру/i.test(RUNTIME_INSTRUCTIONS)
 );
 assert(
-  "runtime has diagnostic minimum",
-  /Минимум диагностики|путь к целевому действию/i.test(RUNTIME_INSTRUCTIONS)
+  "runtime has diagnostic minimum or stop-condition",
+  /Stop-condition|stop-condition/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert("runtime separates LEVEL 1 and LEVEL 2", /LEVEL 1/.test(RUNTIME_INSTRUCTIONS) && /LEVEL 2/.test(RUNTIME_INSTRUCTIONS));
+assert(
+  "runtime stops clarify when enough",
+  /ОБЯЗАН phase=recommend|диагностика ДОСТАТОЧНА/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime secondary details do not block",
+  /не задерживают recommend|НЕ задерживают recommend/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime forbids endless clarify",
+  /Не тяни clarify|не тяни clarify/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime keeps FACT labels internal",
+  /Не выводи заголовки|служебные заголовки|Факты:\//i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime forbids false last-question promise",
+  /последний вопрос/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime soft next step without false handoff claim",
+  /НЕ утверждай, что уже передал|не делает/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime sets recommend phase after recommendation",
+  /не оставляй clarify после/i.test(RUNTIME_INSTRUCTIONS)
 );
 
 assert(
