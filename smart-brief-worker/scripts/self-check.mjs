@@ -40,16 +40,16 @@ assert("runtime declares AI assistant", /AI-помощник/.test(RUNTIME_INSTR
 assert("runtime requires first-session intro", /Intro|1-й ответ|первой реплике|history/i.test(RUNTIME_INSTRUCTIONS));
 assert(
   "runtime bans premature architecture",
-  /Premature ban|НЕЛЬЗЯ выдавать архитектуру|не выдавать архитектуру/i.test(RUNTIME_INSTRUCTIONS)
+  /Premature ban|НЕЛЬЗЯ рекомендовать формат|не выдавать архитектуру/i.test(RUNTIME_INSTRUCTIONS)
 );
 assert(
   "runtime has diagnostic minimum or stop-condition",
-  /Stop-condition|stop-condition/i.test(RUNTIME_INSTRUCTIONS)
+  /Hard gate|Stop\/go|stop-condition/i.test(RUNTIME_INSTRUCTIONS)
 );
 assert("runtime separates LEVEL 1 and LEVEL 2", /LEVEL 1/.test(RUNTIME_INSTRUCTIONS) && /LEVEL 2/.test(RUNTIME_INSTRUCTIONS));
 assert(
   "runtime stops clarify when enough",
-  /ОБЯЗАН phase=recommend|диагностика ДОСТАТОЧНА/i.test(RUNTIME_INSTRUCTIONS)
+  /ОБЯЗАН phase=recommend|Stop\/go/i.test(RUNTIME_INSTRUCTIONS)
 );
 assert(
   "runtime secondary details do not block",
@@ -61,7 +61,7 @@ assert(
 );
 assert(
   "runtime keeps FACT labels internal",
-  /Не выводи заголовки|служебные заголовки|Факты:\//i.test(RUNTIME_INSTRUCTIONS)
+  /Не выводи заголовки|Факты:\//i.test(RUNTIME_INSTRUCTIONS)
 );
 assert(
   "runtime forbids false last-question promise",
@@ -74,6 +74,30 @@ assert(
 assert(
   "runtime sets recommend phase after recommendation",
   /не оставляй clarify после/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime requires evidence-backed KNOWN",
+  /Evidence gate|KNOWN только|без отраслевого допущения/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime forbids closing UNKNOWN by assumption",
+  /UNKNOWN ≠ inferred|Вероятное = UNKNOWN/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime blocks recommend on critical unknown",
+  /Нельзя recommend, пока critical UNKNOWN|critical UNKNOWN/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime checks existing tools when they alter type",
+  /EXISTING TOOLS|REUSE BEFORE BUILD/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime requires reuse before build",
+  /REUSE BEFORE BUILD/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime bans architecture before gate",
+  /без hard gate НЕЛЬЗЯ|пока gate не выполнен/i.test(RUNTIME_INSTRUCTIONS)
 );
 
 assert(
