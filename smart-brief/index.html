@@ -161,16 +161,20 @@
                 name="brief"
                 rows="8"
                 aria-invalid="false"
-                aria-describedby="sb-write-hint"
-                placeholder="Например:&#10;«У меня гостевой дом. Хочу современный сайт с бронированием, который поможет получать больше обращений...»"
+                aria-describedby="sb-start-tip sb-write-hint"
+                placeholder="Напишите своими словами о бизнесе и задаче…"
               ></textarea>
             </label>
 
-            <ul class="sb-hints" aria-label="Подсказки">
-              <li>Чем занимается ваш бизнес?</li>
-              <li>Что хотите создать или улучшить?</li>
-              <li>Какая главная задача сейчас?</li>
-            </ul>
+            <aside class="sb-start-tip" id="sb-start-tip">
+              <p class="sb-start-tip__title">Не знаете, с чего начать?</p>
+              <p class="sb-start-tip__text">
+                Расскажите своими словами о вашем бизнесе: чем занимаетесь, где работаете, кто чаще всего к вам обращается, как сейчас находят вас клиенты и что хотелось бы улучшить. Необязательно отвечать на всё — начните с того, что считаете важным.
+              </p>
+              <p class="sb-start-tip__example">
+                Например: «У меня небольшая студия цветов в Краснодаре. Чаще покупают подарки, клиенты приходят из соцсетей и по рекомендациям. Хочу увеличить количество заказов и меньше времени тратить на переписку.»
+              </p>
+            </aside>
 
             <p class="sb-field-note" id="sb-write-hint" data-sb-write-note role="status" aria-live="polite" hidden>
               Напишите пару предложений о задаче — этого достаточно, чтобы продолжить.
@@ -237,7 +241,13 @@
 
     <script>
       window.SMART_BRIEF_CONFIG = {
-        apiUrl: "https://smart-brief-api.ezhevskaya.workers.dev/api/chat"
+        apiUrl: (function () {
+          var host = window.location.hostname;
+          if (host === "127.0.0.1" || host === "localhost") {
+            return "https://smart-brief-api-test.ezhevskaya.workers.dev/api/chat";
+          }
+          return "https://smart-brief-api.ezhevskaya.workers.dev/api/chat";
+        })()
       };
     </script>
     <script src="/js/main.js"></script>

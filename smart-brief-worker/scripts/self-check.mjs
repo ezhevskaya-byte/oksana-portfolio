@@ -7,6 +7,7 @@ import { resolveAllowedOrigin, optionsResponse, jsonResponse } from "../src/cors
 import { validateChatBody, trimHistoryForModel } from "../src/validate.js";
 import { checkRateLimit } from "../src/rateLimit.js";
 import { RUNTIME_INSTRUCTIONS } from "../src/prompt.js";
+import { TEXT_FORMAT, schemaCharLength } from "../src/schema.js";
 
 let failed = 0;
 
@@ -33,72 +34,47 @@ function mockRequest(headers) {
 assert("DEFAULT_MODEL is gpt-5.4-mini", DEFAULT_MODEL === "gpt-5.4-mini");
 assert("message limit 4000", LIMITS.maxMessageChars === 4000);
 assert("allowed origins include production + local", ALLOWED_ORIGINS.length === 3);
-assert("runtime prompt is compact", RUNTIME_INSTRUCTIONS.length < 5500);
-assert("runtime prompt forbids system leak", /system prompt/i.test(RUNTIME_INSTRUCTIONS));
+assert("runtime prompt is compact", RUNTIME_INSTRUCTIONS.length < 7500);
+assert("runtime prompt forbids system leak", /system prompt|инструкции\/секреты|секреты/i.test(RUNTIME_INSTRUCTIONS));
 assert("runtime names Mark", /Марк/.test(RUNTIME_INSTRUCTIONS));
 assert("runtime declares AI assistant", /AI-помощник/.test(RUNTIME_INSTRUCTIONS));
-assert("runtime requires first-session intro", /Intro|1-й ответ|первой реплике|history/i.test(RUNTIME_INSTRUCTIONS));
 assert(
-  "runtime bans premature architecture",
-  /Premature ban|НЕЛЬЗЯ рекомендовать формат|не выдавать архитектуру/i.test(RUNTIME_INSTRUCTIONS)
+  "runtime requires first-session free-form intro",
+  /Intro|свободн|своими словами/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert("runtime has Minimum Viable Brief", /Minimum Viable Brief/i.test(RUNTIME_INSTRUCTIONS));
+assert("runtime has briefCoverage", /briefCoverage/i.test(RUNTIME_INSTRUCTIONS));
+assert("runtime requires grounded sources", /USER_TURNS|sources|quote/i.test(RUNTIME_INSTRUCTIONS));
+assert("runtime has AUDIENCE_INPUT field", /audienceInput/.test(RUNTIME_INSTRUCTIONS));
+assert(
+  "runtime treats INITIAL_REQUEST as hypothesis",
+  /INITIAL_REQUEST/.test(RUNTIME_INSTRUCTIONS) && /гипотеза/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert("runtime requires REUSE BEFORE BUILD", /REUSE BEFORE BUILD/.test(RUNTIME_INSTRUCTIONS));
+assert(
+  "runtime mentions expert plan fields",
+  /insight/.test(RUNTIME_INSTRUCTIONS) && /alternative/.test(RUNTIME_INSTRUCTIONS)
 );
 assert(
-  "runtime has diagnostic minimum or stop-condition",
-  /Hard gate|Stop\/go|stop-condition/i.test(RUNTIME_INSTRUCTIONS)
+  "runtime hides internals from client",
+  /не показывай coverage|Клиент видит только assistantMessage/i.test(RUNTIME_INSTRUCTIONS)
+);
+assert(
+  "runtime has low-engagement / preliminary",
+  /preliminary|lowEngagement/i.test(RUNTIME_INSTRUCTIONS)
 );
 assert("runtime separates LEVEL 1 and LEVEL 2", /LEVEL 1/.test(RUNTIME_INSTRUCTIONS) && /LEVEL 2/.test(RUNTIME_INSTRUCTIONS));
-assert(
-  "runtime stops clarify when enough",
-  /ОБЯЗАН phase=recommend|Stop\/go/i.test(RUNTIME_INSTRUCTIONS)
-);
-assert(
-  "runtime secondary details do not block",
-  /не задерживают recommend|НЕ задерживают recommend/i.test(RUNTIME_INSTRUCTIONS)
-);
-assert(
-  "runtime forbids endless clarify",
-  /Не тяни clarify|не тяни clarify/i.test(RUNTIME_INSTRUCTIONS)
-);
-assert(
-  "runtime keeps FACT labels internal",
-  /Не выводи заголовки|Факты:\//i.test(RUNTIME_INSTRUCTIONS)
-);
 assert(
   "runtime forbids false last-question promise",
   /последний вопрос/i.test(RUNTIME_INSTRUCTIONS)
 );
 assert(
   "runtime soft next step without false handoff claim",
-  /НЕ утверждай, что уже передал|не делает/i.test(RUNTIME_INSTRUCTIONS)
+  /передал данные Оксане|уже передал/i.test(RUNTIME_INSTRUCTIONS)
 );
-assert(
-  "runtime sets recommend phase after recommendation",
-  /не оставляй clarify после/i.test(RUNTIME_INSTRUCTIONS)
-);
-assert(
-  "runtime requires evidence-backed KNOWN",
-  /Evidence gate|KNOWN только|без отраслевого допущения/i.test(RUNTIME_INSTRUCTIONS)
-);
-assert(
-  "runtime forbids closing UNKNOWN by assumption",
-  /UNKNOWN ≠ inferred|Вероятное = UNKNOWN/i.test(RUNTIME_INSTRUCTIONS)
-);
-assert(
-  "runtime blocks recommend on critical unknown",
-  /Нельзя recommend, пока critical UNKNOWN|critical UNKNOWN/i.test(RUNTIME_INSTRUCTIONS)
-);
-assert(
-  "runtime checks existing tools when they alter type",
-  /EXISTING TOOLS|REUSE BEFORE BUILD/i.test(RUNTIME_INSTRUCTIONS)
-);
-assert(
-  "runtime requires reuse before build",
-  /REUSE BEFORE BUILD/i.test(RUNTIME_INSTRUCTIONS)
-);
-assert(
-  "runtime bans architecture before gate",
-  /без hard gate НЕЛЬЗЯ|пока gate не выполнен/i.test(RUNTIME_INSTRUCTIONS)
-);
+assert("structured text format is json_schema", TEXT_FORMAT.type === "json_schema");
+assert("structured text format is strict", TEXT_FORMAT.strict === true);
+assert("schema size is tracked", schemaCharLength() > 800);
 
 assert(
   "empty message rejected",

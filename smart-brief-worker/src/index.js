@@ -33,6 +33,8 @@ async function handleChat(request, env, origin) {
     return errorResponse("validation_error", 400, origin);
   }
 
+  // Only message/history/sessionId/briefState envelope are accepted.
+  // briefState is opaque and never trusted without re-ground; forged coverage flags are ignored.
   const validated = validateChatBody(raw);
   if (!validated.ok) {
     return errorResponse("validation_error", 400, origin);
@@ -52,16 +54,19 @@ async function handleChat(request, env, origin) {
       apiKey,
       model,
       history,
-      message: validated.data.message
+      message: validated.data.message,
+      briefState: validated.data.briefState
     });
 
+    // Public contract — never leak coverage/plan/gates; briefState is opaque continuum token.
     return jsonResponse(
       {
         ok: true,
         sessionId,
         assistantMessage: reply.assistantMessage,
         phase: reply.phase,
-        done: Boolean(reply.done)
+        done: Boolean(reply.done),
+        briefState: reply.briefState != null ? reply.briefState : null
       },
       200,
       origin
@@ -86,7 +91,6 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/api/chat") {
       if (!origin && request.headers.get("Origin")) {
-        // Browser request from disallowed origin.
         return errorResponse("validation_error", 403, null);
       }
       return handleChat(request, env, origin);

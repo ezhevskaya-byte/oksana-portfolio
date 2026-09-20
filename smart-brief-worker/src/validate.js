@@ -60,7 +60,8 @@ export function validateChatBody(raw) {
     data: {
       sessionId: sessionId || null,
       message,
-      history
+      history,
+      briefState: raw.briefState !== undefined ? raw.briefState : null
     }
   };
 }

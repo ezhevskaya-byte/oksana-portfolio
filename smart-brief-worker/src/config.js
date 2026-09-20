@@ -11,16 +11,73 @@ export const LIMITS = {
   maxHistoryForModel: 12,
   /** Max characters across history contents sent to the model. */
   maxHistoryCharsForModel: 12000,
-  /** Max characters of assistant message returned to client. */
-  maxAssistantChars: 4500,
-  /** OpenAI max_output_tokens. */
-  maxOutputTokens: 900,
+  /** Max JSON chars for opaque briefState from client (ignore if larger). */
+  maxBriefStateChars: 16000,
+  /** Max sources stored per coverage field in briefState. */
+  maxSourcesPerField: 8,
+  /** OpenAI max_output_tokens (raised slightly for structured fields). */
+  maxOutputTokens: 1400,
   /** Fetch timeout for OpenAI (ms). */
   openaiTimeoutMs: 45000,
   /** Best-effort in-memory rate limit window (ms). */
   rateLimitWindowMs: 60_000,
   /** Best-effort max requests per IP per window (single isolate only). */
   rateLimitMaxPerWindow: 20
+};
+
+/** Gate / engagement policy (server-side, not trusted from client). */
+export const GATE_POLICY = {
+  /** Critical MVB fields that must be known+grounded for normal recommend. */
+  criticalFields: [
+    "business",
+    "goal",
+    "audienceInput",
+    "customerJourney",
+    "friction",
+    "existingTools",
+    "desiredFlow"
+  ],
+  /** Minimum exact-quote length (chars) for a source to count. */
+  minQuoteChars: 12,
+  /**
+   * Required aspect hints per field when status=known.
+   * Aspect is NOT semantic proof — only a classification hint from the model.
+   */
+  requiredAspects: {
+    business: ["what_business"],
+    goal: ["desired_outcome"],
+    audienceInput: ["who_or_segment", "what_matters"],
+    customerJourney: ["path_steps"],
+    friction: ["pain"],
+    existingTools: ["tools"],
+    desiredFlow: ["ideal_flow"]
+  },
+  /** Consecutive low-signal user turns required for preliminary bypass. */
+  lowEngagementMinStreak: 3,
+  /** User message length at/under this may count as low-signal (chars). */
+  lowEngagementMaxChars: 40,
+  /** Phrases that count as evasive / low engagement (lowercase). */
+  lowEngagementPhrases: [
+    "не знаю",
+    "неважно",
+    "как хотите",
+    "как считаете",
+    "без разницы",
+    "не важно",
+    "хз",
+    "ок",
+    "хорошо",
+    "да",
+    "нет"
+  ],
+  /** Substrings that mark a preliminary disclaimer in assistantMessage. */
+  preliminaryMarkers: [
+    "предварительн",
+    "ограниченн",
+    "пока не хватает",
+    "на основе огранич",
+    "неполный"
+  ]
 };
 
 export const ALLOWED_ORIGINS = [

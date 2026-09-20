@@ -47,6 +47,7 @@
   var history = [];
   var phase = "clarify";
   var done = false;
+  var briefState = null;
 
   function createSessionId() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -63,7 +64,8 @@
           sessionId: sessionId,
           history: history,
           phase: phase,
-          done: done
+          done: done,
+          briefState: briefState
         })
       );
     } catch (_err) {
@@ -76,6 +78,7 @@
     history = [];
     phase = "clarify";
     done = false;
+    briefState = null;
     try {
       sessionStorage.removeItem(STORAGE_KEY);
     } catch (_err) {
@@ -111,7 +114,9 @@
           data.phase === "recommend" || data.phase === "handoff" || data.phase === "clarify"
             ? data.phase
             : "clarify",
-        done: Boolean(data.done)
+        done: Boolean(data.done),
+        // Opaque continuum token from server — do not interpret.
+        briefState: data.briefState != null ? data.briefState : null
       };
     } catch (_err) {
       return null;
@@ -258,7 +263,8 @@
       body: JSON.stringify({
         sessionId: sessionId,
         message: message,
-        history: historyForRequest()
+        history: historyForRequest(),
+        briefState: briefState
       }),
       signal: controller ? controller.signal : undefined
     })
@@ -322,6 +328,11 @@
 
         if (typeof payload.sessionId === "string" && payload.sessionId) {
           sessionId = payload.sessionId;
+        }
+
+        // Opaque server continuum — replace local copy only; never interpret.
+        if (Object.prototype.hasOwnProperty.call(payload, "briefState")) {
+          briefState = payload.briefState != null ? payload.briefState : null;
         }
 
         history.push({ role: "user", content: message });
@@ -472,6 +483,7 @@
     history = restored.history;
     phase = restored.phase;
     done = restored.done;
+    briefState = restored.briefState != null ? restored.briefState : null;
     stages.intro.hidden = true;
     clearStageClasses(stages.intro);
     stages.write.hidden = true;

@@ -1,5 +1,18 @@
 import { DEFAULT_MODEL, LIMITS } from "./config.js";
 import { RUNTIME_INSTRUCTIONS } from "./prompt.js";
+import { TEXT_FORMAT } from "./schema.js";
+import {
+  enforceGates,
+  pickMissingFocus,
+  evaluateBriefReady,
+  buildUserTurns,
+  formatUserTurnsBlock,
+  selectClarifyMessage,
+  mergeBriefCoverage,
+  isFirstUserTurn,
+  selectFirstTurnMessage,
+  READY_REPAIR_FALLBACK
+} from "./gate.js";
 
 function extractOutputText(payload) {
   if (!payload || typeof payload !== "object") return "";
@@ -24,17 +37,14 @@ function extractOutputText(payload) {
   return chunks.join("\n").trim();
 }
 
-function parseModelJson(text) {
+function parseJsonObject(text) {
   if (!text) return null;
-
   let candidate = text.trim();
   const fenced = candidate.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fenced) candidate = fenced[1].trim();
-
   const start = candidate.indexOf("{");
   const end = candidate.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) return null;
-
   try {
     return JSON.parse(candidate.slice(start, end + 1));
   } catch (_err) {
@@ -42,53 +52,100 @@ function parseModelJson(text) {
   }
 }
 
-function normalizeAssistantPayload(rawText) {
-  const parsed = parseModelJson(rawText);
-  let assistantMessage = "";
-  let phase = "clarify";
-  let done = false;
-
-  if (parsed && typeof parsed === "object") {
-    assistantMessage =
-      typeof parsed.assistantMessage === "string"
-        ? parsed.assistantMessage.trim()
-        : typeof parsed.message === "string"
-          ? parsed.message.trim()
-          : "";
-    if (parsed.phase === "clarify" || parsed.phase === "recommend" || parsed.phase === "handoff") {
-      phase = parsed.phase;
-    }
-    done = Boolean(parsed.done);
+function clipAssistant(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (text.length > LIMITS.maxAssistantChars) {
+    return text.slice(0, LIMITS.maxAssistantChars).trim();
   }
-
-  if (!assistantMessage) {
-    assistantMessage = (rawText || "").trim();
-    phase = "clarify";
-    done = false;
-  }
-
-  if (assistantMessage.length > LIMITS.maxAssistantChars) {
-    assistantMessage = assistantMessage.slice(0, LIMITS.maxAssistantChars).trim();
-  }
-
-  if (phase === "recommend" || phase === "handoff") {
-    // Concept turns may complete the clarifying loop.
-    if (done !== true && phase === "handoff") done = true;
-  }
-
-  return { assistantMessage, phase, done };
+  return text;
 }
 
-/**
- * Calls OpenAI Responses API.
- * Model comes from env.OPENAI_MODEL (fallback DEFAULT_MODEL) for easy A/B later.
- */
-export async function createSmartBriefReply({ apiKey, model, history, message }) {
-  const input = history.concat([{ role: "user", content: message }]).map((item) => ({
-    role: item.role,
-    content: item.content
-  }));
+function normalizeSources(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(function (s) {
+    if (!s || typeof s !== "object") {
+      return { turnId: "", quote: "", aspect: "", operation: "support" };
+    }
+    return {
+      turnId: typeof s.turnId === "string" ? s.turnId.trim() : "",
+      quote: typeof s.quote === "string" ? s.quote.trim() : "",
+      aspect: typeof s.aspect === "string" ? s.aspect.trim() : "",
+      operation: s.operation === "replace" ? "replace" : "support"
+    };
+  });
+}
 
+function normalizeCoverage(raw) {
+  const keys = [
+    "business",
+    "goal",
+    "audienceInput",
+    "customerJourney",
+    "friction",
+    "existingTools",
+    "desiredFlow"
+  ];
+  const out = {};
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    const item = raw && raw[key] ? raw[key] : {};
+    const status =
+      item.status === "known" || item.status === "partial" || item.status === "unknown"
+        ? item.status
+        : "unknown";
+    out[key] = { status, sources: normalizeSources(item.sources) };
+  }
+  return out;
+}
+
+function normalizeModelTurn(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  const phase =
+    raw.phase === "clarify" || raw.phase === "recommend" || raw.phase === "handoff"
+      ? raw.phase
+      : "clarify";
+  const recommendationMode =
+    raw.recommendationMode === "normal" ||
+    raw.recommendationMode === "preliminary" ||
+    raw.recommendationMode === "none"
+      ? raw.recommendationMode
+      : "none";
+
+  const need = raw.nextInformationNeed && typeof raw.nextInformationNeed === "object"
+    ? raw.nextInformationNeed
+    : { focus: "none", reason: "" };
+
+  return {
+    assistantMessage: clipAssistant(raw.assistantMessage),
+    phase,
+    done: Boolean(raw.done),
+    briefCoverage: normalizeCoverage(raw.briefCoverage),
+    nextInformationNeed: {
+      focus: typeof need.focus === "string" ? need.focus : "none",
+      reason: typeof need.reason === "string" ? need.reason : ""
+    },
+    clarifyFallbackMessage:
+      typeof raw.clarifyFallbackMessage === "string" ? raw.clarifyFallbackMessage.trim() : "",
+    recommendationMode,
+    lowEngagement: Boolean(raw.lowEngagement),
+    expertPlan: raw.expertPlan && typeof raw.expertPlan === "object" ? raw.expertPlan : null
+  };
+}
+
+function buildInstructions(base, userTurns, firstTurn) {
+  let text = (base || RUNTIME_INSTRUCTIONS) + "\n\n" + formatUserTurnsBlock(userTurns);
+  if (firstTurn) {
+    text +=
+      "\n\nFIRST_TURN_MODE (server): welcome + free discovery only. " +
+      "Put full client-visible welcome in clarifyFallbackMessage. " +
+      "Do NOT ask a narrow MVB quiz question (audience/journey/tools). " +
+      "recommendationMode=none, expertPlan=null, phase=clarify.";
+  }
+  return text;
+}
+
+async function callOpenAI({ apiKey, model, input, instructions }) {
   const controller = new AbortController();
   const timer = setTimeout(function () {
     controller.abort();
@@ -105,10 +162,11 @@ export async function createSmartBriefReply({ apiKey, model, history, message })
       },
       body: JSON.stringify({
         model: model || DEFAULT_MODEL,
-        instructions: RUNTIME_INSTRUCTIONS,
+        instructions: instructions || RUNTIME_INSTRUCTIONS,
         input,
         store: false,
-        max_output_tokens: LIMITS.maxOutputTokens
+        max_output_tokens: LIMITS.maxOutputTokens,
+        text: { format: TEXT_FORMAT }
       })
     });
   } finally {
@@ -116,6 +174,32 @@ export async function createSmartBriefReply({ apiKey, model, history, message })
   }
 
   if (!response.ok) {
+    let upstreamType = null;
+    let upstreamCode = null;
+    let upstreamParam = null;
+    let upstreamMessage = null;
+    try {
+      const errorPayload = await response.json();
+      const upstreamError =
+        errorPayload && typeof errorPayload === "object" ? errorPayload.error : null;
+      if (upstreamError && typeof upstreamError === "object") {
+        if (typeof upstreamError.type === "string") upstreamType = upstreamError.type;
+        if (typeof upstreamError.code === "string") upstreamCode = upstreamError.code;
+        if (typeof upstreamError.param === "string") upstreamParam = upstreamError.param;
+        if (typeof upstreamError.message === "string") {
+          upstreamMessage = upstreamError.message.slice(0, 200);
+        }
+      }
+    } catch (_parseErr) {
+      // Ignore non-JSON error bodies; still log status below.
+    }
+    console.error("[smart-brief] openai_upstream_error", {
+      status: response.status,
+      type: upstreamType,
+      code: upstreamCode,
+      param: upstreamParam,
+      message: upstreamMessage
+    });
     const err = new Error("openai_http_" + response.status);
     err.code = "unavailable";
     throw err;
@@ -123,13 +207,313 @@ export async function createSmartBriefReply({ apiKey, model, history, message })
 
   const payload = await response.json();
   const rawText = extractOutputText(payload);
-  const normalized = normalizeAssistantPayload(rawText);
-
-  if (!normalized.assistantMessage) {
-    const err = new Error("empty_model_output");
+  const parsed = parseJsonObject(rawText);
+  const turn = normalizeModelTurn(parsed);
+  const hasClientText =
+    turn &&
+    (turn.assistantMessage || turn.clarifyFallbackMessage);
+  if (!hasClientText) {
+    const err = new Error("empty_or_invalid_model_output");
     err.code = "unavailable";
     throw err;
   }
-
-  return normalized;
+  return turn;
 }
+
+/** Clarify repair when Gate1 still has real missing fields. */
+function buildClarifyRepairInstructions(reason, missing, userTurns) {
+  const focus = pickMissingFocus(missing);
+  const focusHint = focus
+    ? "Prefer focus=" + focus + "."
+    : "Ask about the first real missing critical field only.";
+  return buildInstructions(
+    RUNTIME_INSTRUCTIONS +
+      "\n\nREPAIR MODE (server): previous turn violated readiness gates (" +
+      reason +
+      "). Do NOT recommend. recommendationMode MUST be none. phase MUST be clarify. expertPlan MUST be null. " +
+      "Ask ONE natural high-information clarifying question. " +
+      focusHint +
+      " Put that full client-visible question in clarifyFallbackMessage. Update briefCoverage sources honestly from USER_TURNS only. " +
+      "Never claim the solution is ready. Never re-ask a field that is already grounded+sufficient.",
+    userTurns
+  );
+}
+
+/**
+ * Recommendation repair when Gate1 READY but model stayed on clarify
+ * or Expert Gate failed. Must produce recommend + expertPlan; no MVB quiz.
+ */
+function buildRecommendRepairInstructions(reason, userTurns) {
+  return buildInstructions(
+    RUNTIME_INSTRUCTIONS +
+      "\n\nRECOMMEND REPAIR MODE (server): Gate1 coverage is READY (all critical fields grounded+sufficient). " +
+      "Previous output failed recommendation path (" +
+      reason +
+      "). " +
+      "You MUST output phase=recommend, recommendationMode=normal, done=false or true, " +
+      "a complete expertPlan (all fields non-empty), and assistantMessage with the client-facing recommendation. " +
+      "nextInformationNeed.focus MUST be none. Do NOT ask clarifying MVB questions. " +
+      "clarifyFallbackMessage may be empty. " +
+      "REUSE BEFORE BUILD: if USER_TURNS / grounded tools show an existing booking system, calendar, prices, " +
+      "or embeddable online-booking module, primarySolution and reuseNote MUST integrate/reuse it — " +
+      "do NOT propose building booking from scratch. WhatsApp/phone are channels, not a reason to ignore the module. " +
+      "briefCoverage: emit only genuinely new sources this turn; prior evidence is already held server-side.",
+    userTurns
+  );
+}
+
+function toRecommendPublic(turn, briefState) {
+  return {
+    assistantMessage: clipAssistant(turn.assistantMessage),
+    phase: turn.phase === "handoff" ? "handoff" : "recommend",
+    done: Boolean(turn.done),
+    briefState: briefState
+  };
+}
+
+function toClarifyPublic(turn, missing, briefState, coverage, userTurns) {
+  return {
+    assistantMessage: clipAssistant(
+      selectClarifyMessage(turn, missing, coverage, userTurns)
+    ),
+    phase: "clarify",
+    done: false,
+    briefState: briefState
+  };
+}
+
+function toReadyFallbackPublic(briefState) {
+  return {
+    assistantMessage: clipAssistant(READY_REPAIR_FALLBACK),
+    phase: "clarify",
+    done: false,
+    briefState: briefState
+  };
+}
+
+function isRecommendDecision(decision) {
+  return (
+    decision &&
+    decision.action === "allow" &&
+    decision.publicTurn &&
+    (decision.publicTurn.phase === "recommend" || decision.publicTurn.phase === "handoff")
+  );
+}
+
+function isCoverageReady(decision) {
+  return Boolean(decision && decision.coverageEval && decision.coverageEval.ready);
+}
+
+/**
+ * Controlled recommend repair: model must produce recommendation; Gate1+Gate2 re-checked.
+ * Never publishes raw assistantMessage without Expert Gate. Never asks closed MVB fields.
+ */
+async function runReadyRecommendRepair({
+  apiKey,
+  model,
+  input,
+  history,
+  message,
+  userTurns,
+  briefState,
+  reason,
+  callModel
+}) {
+  const call = callModel || callOpenAI;
+  const repairTurn = await call({
+    apiKey,
+    model,
+    input,
+    instructions: buildRecommendRepairInstructions(reason || "ready_but_clarify", userTurns)
+  });
+
+  const repairMerged = mergeBriefCoverage(briefState, repairTurn.briefCoverage, userTurns);
+  repairTurn.briefCoverage = repairMerged.coverage;
+  const repairBriefState = repairMerged.briefState;
+
+  const repairDecision = enforceGates(repairTurn, { history, message });
+
+  if (isRecommendDecision(repairDecision)) {
+    return toRecommendPublic(repairDecision.publicTurn, repairBriefState);
+  }
+
+  // Gate2 fail or still clarify — never invent MVB question for a ready brief.
+  return toReadyFallbackPublic(repairBriefState);
+}
+
+/**
+ * Main chat generation with B′ grounding, D′ briefState merge, server-owned routing.
+ * Optional callOpenAI inject for deterministic tests.
+ */
+export async function createSmartBriefReply({
+  apiKey,
+  model,
+  history,
+  message,
+  briefState: priorBriefState,
+  callOpenAI: callOpenAIInject
+}) {
+  const callModel = callOpenAIInject || callOpenAI;
+  const userTurns = buildUserTurns(history, message);
+  const firstTurn = isFirstUserTurn(history);
+  const input = history.concat([{ role: "user", content: message }]).map(function (item) {
+    return { role: item.role, content: item.content };
+  });
+  const instructions = buildInstructions(RUNTIME_INSTRUCTIONS, userTurns, firstTurn);
+
+  let turn = await callModel({ apiKey, model, input, instructions });
+
+  const merged = mergeBriefCoverage(priorBriefState, turn.briefCoverage, userTurns);
+  turn.briefCoverage = merged.coverage;
+  const briefState = merged.briefState;
+
+  // Welcome / free-discovery: first user turn must not become MVB FOCUS_PROMPT.
+  // Gate/merge still run; recommendation never publishes here.
+  if (isFirstUserTurn(history)) {
+    return {
+      assistantMessage: clipAssistant(selectFirstTurnMessage(turn, message)),
+      phase: "clarify",
+      done: false,
+      briefState: briefState
+    };
+  }
+
+  let decision = enforceGates(turn, { history, message });
+
+  // Successful recommendation path (Gate1 + Gate2 already passed inside enforceGates).
+  if (isRecommendDecision(decision)) {
+    return toRecommendPublic(decision.publicTurn, briefState);
+  }
+
+  // Gate1 READY but model still on clarify / none → recommend repair (not MVB re-ask).
+  if (decision.action === "allow" && isCoverageReady(decision)) {
+    return runReadyRecommendRepair({
+      apiKey,
+      model,
+      input,
+      history,
+      message,
+      userTurns,
+      briefState,
+      reason: "ready_but_model_clarify",
+      callModel
+    });
+  }
+
+  // Clarify with real missing fields.
+  if (decision.action === "allow") {
+    return toClarifyPublic(
+      turn,
+      decision.coverageEval && decision.coverageEval.missing,
+      briefState,
+      decision.coverageEval && decision.coverageEval.coverage,
+      userTurns
+    );
+  }
+
+  // Expert Gate failed while coverage READY → recommend repair (never publish raw text).
+  if (decision.reason === "gate2_fail" && isCoverageReady(decision)) {
+    return runReadyRecommendRepair({
+      apiKey,
+      model,
+      input,
+      history,
+      message,
+      userTurns,
+      briefState,
+      reason: "gate2_fail",
+      callModel
+    });
+  }
+
+  // Gate1 fail (or other block): clarify using real missing; optional clarify-repair.
+  const blockedClarify = toClarifyPublic(
+    turn,
+    decision.missing || (decision.coverageEval && decision.coverageEval.missing),
+    briefState,
+    (decision.coverageEval && decision.coverageEval.coverage) || turn.briefCoverage,
+    userTurns
+  );
+  if (turn.clarifyFallbackMessage) {
+    return blockedClarify;
+  }
+  if (turn.nextInformationNeed.focus !== "none") {
+    return blockedClarify;
+  }
+
+  const repairTurn = await callModel({
+    apiKey,
+    model,
+    input,
+    instructions: buildClarifyRepairInstructions(
+      decision.reason,
+      (decision.missing || (decision.coverageEval && decision.coverageEval.missing) || []),
+      userTurns
+    )
+  });
+
+  const repairMerged = mergeBriefCoverage(briefState, repairTurn.briefCoverage, userTurns);
+  repairTurn.briefCoverage = repairMerged.coverage;
+  const repairBriefState = repairMerged.briefState;
+
+  const repairDecision = enforceGates(repairTurn, { history, message });
+
+  if (isRecommendDecision(repairDecision)) {
+    // Clarify-repair must not skip Gate1: only allow recommend if somehow now ready+gated.
+    return toRecommendPublic(repairDecision.publicTurn, repairBriefState);
+  }
+
+  if (repairDecision.action === "allow" && isCoverageReady(repairDecision)) {
+    return runReadyRecommendRepair({
+      apiKey,
+      model,
+      input,
+      history,
+      message,
+      userTurns,
+      briefState: repairBriefState,
+      reason: "clarify_repair_became_ready",
+      callModel
+    });
+  }
+
+  if (repairDecision.action === "allow") {
+    return toClarifyPublic(
+      repairTurn,
+      repairDecision.coverageEval && repairDecision.coverageEval.missing,
+      repairBriefState,
+      repairDecision.coverageEval && repairDecision.coverageEval.coverage,
+      userTurns
+    );
+  }
+
+  const missing =
+    (decision.missing ||
+      (decision.coverageEval && decision.coverageEval.missing) ||
+      evaluateBriefReady(repairTurn.briefCoverage, userTurns).missing) ||
+    [];
+  return toClarifyPublic(
+    repairTurn,
+    missing,
+    repairBriefState,
+    repairTurn.briefCoverage,
+    userTurns
+  );
+}
+
+/** Test helpers (not used by production client). */
+export const __test__ = {
+  normalizeModelTurn,
+  parseJsonObject,
+  extractOutputText,
+  callOpenAI,
+  buildClarifyRepairInstructions,
+  buildRecommendRepairInstructions,
+  buildRepairInstructions: buildClarifyRepairInstructions,
+  toRecommendPublic,
+  toClarifyPublic,
+  toReadyFallbackPublic,
+  buildInstructions,
+  createSmartBriefReply,
+  runReadyRecommendRepair
+};
