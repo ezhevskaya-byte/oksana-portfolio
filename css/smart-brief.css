@@ -10,18 +10,17 @@
   padding-bottom: clamp(2.5rem, 6vw, 4.5rem);
 }
 
-/* Intro / write: editorial measure aligned with homepage --measure */
-.sb-hero__inner {
-  max-width: var(--measure, 44rem); /* was 42rem */
-  box-sizing: border-box;
-}
-
 /*
- * Dialogue is the primary work surface on desktop.
- * Keep ~48rem work area for chat (within 720–800px brief).
+ * Root cause of “narrow tablet column”: .sb-hero__inner sits on .container
+ * but was re-capped to --measure / --measure-wide (44–48rem / 704–768px),
+ * while the header used the full site container (~78rem / 1248px).
+ *
+ * Work surface = site .container width. Readable line length stays on
+ * prose selectors (.sb-lead, .sb-outcome, titles) — not on the stage shell.
  */
-.smart-brief-page:has([data-sb-stage="dialogue"]:not([hidden])) .sb-hero__inner {
-  max-width: var(--measure-wide, 48rem); /* 768px */
+.sb-hero__inner {
+  max-width: none;
+  box-sizing: border-box;
 }
 
 .sb-back {
@@ -175,7 +174,7 @@
 }
 
 .sb-outcome {
-  max-width: 32rem;
+  max-width: var(--measure, 44rem);
   margin-top: clamp(1.25rem, 2.5vw, 1.65rem);
   padding-top: 0.15rem;
   color: var(--ink-faint);
@@ -224,11 +223,11 @@
 
 /* Dialogue title/lead: same type scale as intro, less artificial narrowing */
 .sb-stage[data-sb-stage="dialogue"] .sb-stage__title {
-  max-width: min(100%, 24ch);
+  max-width: min(100%, 28ch);
 }
 
 .sb-stage[data-sb-stage="dialogue"] .sb-lead {
-  max-width: min(100%, var(--measure-wide, 48rem));
+  max-width: min(100%, var(--measure, 44rem));
   font-size: var(--text-lead, 1.2rem);
 }
 
@@ -388,9 +387,9 @@
   box-sizing: border-box;
 }
 
-/* Messages use the dialogue column (was capped at 36rem inside 42rem → “tiny chat”) */
+/* Messages use most of the dialogue column; not a second nested island */
 .sb-msg {
-  max-width: min(100%, 46rem);
+  max-width: min(100%, 52rem);
   padding: 0.9rem 1.1rem;
   border-radius: var(--radius-sm);
   line-height: 1.6;
@@ -403,7 +402,7 @@
 
 .sb-msg--user {
   justify-self: end;
-  max-width: min(100%, 40rem);
+  max-width: min(100%, 44rem);
   color: var(--ink);
   background: color-mix(in srgb, var(--accent) 14%, var(--bg-paper));
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
@@ -411,7 +410,7 @@
 
 .sb-msg--assistant {
   justify-self: start;
-  max-width: min(100%, 46rem);
+  max-width: min(100%, 52rem);
   color: var(--ink-soft);
   background: color-mix(in srgb, var(--bg-paper) 88%, transparent);
   border: 1px solid var(--line);
@@ -441,20 +440,8 @@
   }
 }
 
-/* Tablet / narrow desktop: full available width inside container padding */
-@media (max-width: 1100px) {
-  .sb-hero__inner,
-  .smart-brief-page:has([data-sb-stage="dialogue"]:not([hidden])) .sb-hero__inner {
-    max-width: min(var(--measure-wide, 48rem), 100%);
-  }
-}
-
+/* Tablet / mobile: .container already provides full available width */
 @media (max-width: 700px) {
-  .sb-hero__inner,
-  .smart-brief-page:has([data-sb-stage="dialogue"]:not([hidden])) .sb-hero__inner {
-    max-width: 100%;
-  }
-
   .sb-modes {
     grid-template-columns: 1fr;
   }

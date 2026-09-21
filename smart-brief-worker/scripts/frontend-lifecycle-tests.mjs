@@ -363,19 +363,21 @@ console.log("\n=== layout / responsive contracts ===");
 assert("CSS no zoom", !/\bzoom\s*:/.test(css));
 assert("CSS no transform:scale on page chrome", !/transform\s*:\s*scale\s*\(/.test(css));
 assert(
-  "CSS intro uses measure token or 44rem",
-  /--measure:\s*44rem/.test(fs.readFileSync(path.join(ROOT, "css", "styles.css"), "utf8")) &&
-    (/max-width:\s*var\(--measure/.test(css) || /max-width:\s*44rem/.test(css))
+  "CSS SB work surface not capped to text measure",
+  /\.sb-hero__inner\s*\{[^}]*max-width:\s*none/.test(css)
 );
 assert(
-  "CSS dialogue widens to measure-wide/48rem",
-  /--measure-wide:\s*48rem/.test(fs.readFileSync(path.join(ROOT, "css", "styles.css"), "utf8")) &&
-    (/max-width:\s*var\(--measure-wide/.test(css) || /max-width:\s*48rem/.test(css))
+  "CSS SB no stage-shell 44/48rem re-cap",
+  !/\.sb-hero__inner\s*\{[^}]*max-width:\s*var\(--measure/.test(css) &&
+    !/\.smart-brief-page:has\(\[data-sb-stage="dialogue"\][^{]*\{[^}]*max-width:\s*var\(--measure-wide/.test(
+      css
+    )
 );
+assert("CSS prose lead keeps readable measure", /\.sb-lead\s*\{[^}]*max-width:\s*var\(--measure/.test(css));
 assert("CSS msg no longer capped only at 36rem", !/\.sb-msg\s*\{[^}]*max-width:\s*min\(100%,\s*36rem\)/.test(css));
-assert("CSS msg uses wider column", /\.sb-msg\s*\{[^}]*max-width:\s*min\(100%,\s*46rem\)/.test(css));
+assert("CSS msg uses wider column", /\.sb-msg\s*\{[^}]*max-width:\s*min\(100%,\s*52rem\)/.test(css));
 assert("CSS overflow-x clip/hidden on page or chat", /overflow-x:\s*(clip|hidden)/.test(css));
-assert("CSS mobile max-width 700 sets hero 100%", /@media\s*\(max-width:\s*700px\)[\s\S]*?max-width:\s*100%/.test(css));
+assert("CSS mobile modes stack at 700", /@media\s*\(max-width:\s*700px\)[\s\S]*?\.sb-modes/.test(css));
 assert("CSS textarea width 100%", /\.sb-textarea\s*\{[^}]*width:\s*100%/.test(css));
 
 const stylesRoot = fs.readFileSync(path.join(ROOT, "css", "styles.css"), "utf8");
@@ -383,18 +385,18 @@ assert("CSS body uses --text-body 1.125rem", /--text-body:\s*1\.125rem/.test(sty
 assert("CSS --max widened to 78rem", /--max:\s*78rem/.test(stylesRoot));
 assert("CSS --gutter defined", /--gutter:\s*2\.75rem/.test(stylesRoot));
 
-// Viewport budget model (rem = 16px): dialogue 48rem = 768px fits 720–800 brief
-const dialoguePx = 48 * 16;
-assert("dialogue work area 768px in 720–800", dialoguePx >= 720 && dialoguePx <= 800);
+// Work surface = site container (--max 78rem ≈ 1248px); prose measure stays 44rem
+const workPx = 78 * 16;
+assert("SB work surface near 1000–1250px", workPx >= 1000 && workPx <= 1300);
+assert("prose measure stays readable 44rem", 44 * 16 === 704);
 
 function columnFits(viewport, columnRem, gutterPx) {
   const col = columnRem * 16;
   return col + gutterPx <= viewport;
 }
-assert("1920 fits 48rem + gutters", columnFits(1920, 48, 44));
-assert("1440 fits 48rem + gutters", columnFits(1440, 48, 44));
-assert("1366 fits 48rem + gutters", columnFits(1366, 48, 44));
-assert("1920 layout container 78rem fits", 78 * 16 + 44 <= 1920);
+assert("1920 fits 78rem work + gutters", columnFits(1920, 78, 44));
+assert("1440 fits 78rem work + gutters", columnFits(1440, 78, 44));
+assert("1366 fits 78rem work surface", 78 * 16 <= 1366);
 assert("tablet 768 uses ≤100% column", true);
 assert("mobile 390 uses ≤100% column", true);
 
