@@ -751,6 +751,222 @@ console.log("\n=== recovery focus proof ===");
   void turns;
 }
 
+// ========== BF live retail — WHAT_MATTERS without WHO → WHO-only (HTTP) ==========
+console.log("\n=== E2E retail bedding partial audience ===");
+{
+  const WHO_ONLY =
+    "Кто чаще всего к вам обращается — какой это тип клиентов или гостей?";
+  const U1 = "продажа постельного белья, реклама чтобы о нас больше людей узнало";
+  const U2 = "продавец общается, качество, цена, ассортимент";
+  const variants = [
+    U2,
+    "важны цена, качество и выбор",
+    "смотрят на качество ткани, стоимость и ассортимент",
+    "главное цена и чтобы был хороший выбор",
+    "покупатели спрашивают про материал, цену и размеры"
+  ];
+
+  async function runPartialAudience(label, mattersText, withBriefState) {
+    let history = [];
+    let briefState = null;
+    let sessionId = "bf-" + label;
+
+    const mockU1 = async function () {
+      return {
+        assistantMessage: "",
+        phase: "clarify",
+        done: false,
+        briefCoverage: Object.assign(emptyCoverage(), {
+          business: field([src("u1", "продажа постельного белья", "what_business")]),
+          goal: field([src("u1", "реклама чтобы о нас больше людей узнало", "desired_outcome")])
+        }),
+        nextInformationNeed: { focus: "audienceInput", reason: "need audience" },
+        clarifyFallbackMessage: AUDIENCE_FOCUS,
+        recommendationMode: "none",
+        lowEngagement: false,
+        expertPlan: null
+      };
+    };
+
+    const r1 = await httpChat({
+      sessionId,
+      message: U1,
+      history,
+      briefState,
+      callOpenAI: mockU1
+    });
+    assert(label + " u1 http 200", r1.status === 200 && r1.payload.ok === true);
+    // First user turn may be welcome; audience FOCUS is asked once continuum starts.
+    assert(label + " u1 clarify", r1.payload.phase === "clarify");
+    history = history.concat([
+      { role: "user", content: U1 },
+      { role: "assistant", content: r1.payload.assistantMessage }
+    ]);
+    if (withBriefState) briefState = r1.payload.briefState;
+    else briefState = null;
+
+    // If U1 was welcome, force an audience ask turn that mirrors live Mark.
+    if (r1.payload.assistantMessage !== AUDIENCE_FOCUS) {
+      const bridge = "Нужно, чтобы о магазине узнавало больше людей.";
+      const mockBridge = async function () {
+        return {
+          assistantMessage: "",
+          phase: "clarify",
+          done: false,
+          briefCoverage: Object.assign(emptyCoverage(), {
+            business: field([src("u1", "продажа постельного белья", "what_business")]),
+            goal: field([
+              src("u1", "реклама чтобы о нас больше людей узнало", "desired_outcome")
+            ])
+          }),
+          nextInformationNeed: { focus: "audienceInput", reason: "need audience" },
+          clarifyFallbackMessage: AUDIENCE_FOCUS,
+          recommendationMode: "none",
+          lowEngagement: false,
+          expertPlan: null
+        };
+      };
+      const rb = await httpChat({
+        sessionId,
+        message: bridge,
+        history,
+        briefState: withBriefState ? briefState : null,
+        callOpenAI: mockBridge
+      });
+      assert(label + " bridge http 200", rb.status === 200 && rb.payload.ok === true);
+      assert(label + " bridge audience ask", rb.payload.assistantMessage === AUDIENCE_FOCUS);
+      history = history.concat([
+        { role: "user", content: bridge },
+        { role: "assistant", content: rb.payload.assistantMessage }
+      ]);
+      if (withBriefState) briefState = rb.payload.briefState;
+    }
+
+    // Model wrongly re-asks full audience — server must recover WHAT_MATTERS
+    // and ask WHO only. When wiping briefState, model still re-sends prior
+    // business/goal sources so audience remains the active MVB gap (as in live).
+    const mockU2 = async function () {
+      return {
+        assistantMessage: "",
+        phase: "clarify",
+        done: false,
+        briefCoverage: withBriefState
+          ? emptyCoverage()
+          : Object.assign(emptyCoverage(), {
+              business: field([src("u1", "продажа постельного белья", "what_business")]),
+              goal: field([
+                src("u1", "реклама чтобы о нас больше людей узнало", "desired_outcome")
+              ])
+            }),
+        nextInformationNeed: { focus: "audienceInput", reason: "full reask" },
+        clarifyFallbackMessage: AUDIENCE_FOCUS,
+        recommendationMode: "none",
+        lowEngagement: false,
+        expertPlan: null
+      };
+    };
+
+    const r2 = await httpChat({
+      sessionId,
+      message: mattersText,
+      history,
+      briefState: withBriefState ? briefState : null,
+      callOpenAI: mockU2
+    });
+    assert(label + " u2 http 200", r2.status === 200 && r2.payload.ok === true);
+    assert(label + " u2 not full audience", r2.payload.assistantMessage !== AUDIENCE_FOCUS);
+    assert(label + " u2 WHO-only", r2.payload.assistantMessage === WHO_ONLY);
+    assert(label + " u2 clarify", r2.payload.phase === "clarify");
+
+    // Continuum: answer WHO → should leave audience (not re-ask matters)
+    history = history.concat([
+      { role: "user", content: mattersText },
+      { role: "assistant", content: r2.payload.assistantMessage }
+    ]);
+    if (withBriefState) briefState = r2.payload.briefState;
+
+    const whoAnswer = "чаще женщины 30–60 лет";
+    const mockU3 = async function () {
+      return {
+        assistantMessage: "",
+        phase: "clarify",
+        done: false,
+        briefCoverage: withBriefState
+          ? emptyCoverage()
+          : Object.assign(emptyCoverage(), {
+              business: field([src("u1", "продажа постельного белья", "what_business")]),
+              goal: field([
+                src("u1", "реклама чтобы о нас больше людей узнало", "desired_outcome")
+              ])
+            }),
+        nextInformationNeed: { focus: "audienceInput", reason: "should be closed" },
+        clarifyFallbackMessage: AUDIENCE_FOCUS,
+        recommendationMode: "none",
+        lowEngagement: false,
+        expertPlan: null
+      };
+    };
+    const r3 = await httpChat({
+      sessionId,
+      message: whoAnswer,
+      history,
+      briefState: withBriefState ? briefState : null,
+      callOpenAI: mockU3
+    });
+    assert(label + " u3 http 200", r3.status === 200 && r3.payload.ok === true);
+    assert(label + " u3 not full audience", r3.payload.assistantMessage !== AUDIENCE_FOCUS);
+    assert(label + " u3 not WHO reask", r3.payload.assistantMessage !== WHO_ONLY);
+    assert(
+      label + " u3 not matters reask",
+      r3.payload.assistantMessage !==
+        "А что для этих людей обычно важнее всего при выборе?"
+    );
+  }
+
+  await runPartialAudience("bedding-state", U2, true);
+  await runPartialAudience("bedding-wipe", U2, false);
+
+  for (let i = 1; i < variants.length; i += 1) {
+    await runPartialAudience("bedding-v" + i, variants[i], false);
+  }
+
+  // Reverse: WHO first → WHAT_MATTERS-only
+  {
+    const MATTERS_ONLY = "А что для этих людей обычно важнее всего при выборе?";
+    let history = [
+      { role: "user", content: U1 },
+      { role: "assistant", content: AUDIENCE_FOCUS }
+    ];
+    const r = await httpChat({
+      sessionId: "bf-reverse",
+      message: "чаще женщины 30–60 лет",
+      history,
+      briefState: null,
+      callOpenAI: async function () {
+        return {
+          assistantMessage: "",
+          phase: "clarify",
+          done: false,
+          briefCoverage: Object.assign(emptyCoverage(), {
+            business: field([src("u1", "продажа постельного белья", "what_business")]),
+            goal: field([
+              src("u1", "реклама чтобы о нас больше людей узнало", "desired_outcome")
+            ])
+          }),
+          nextInformationNeed: { focus: "audienceInput", reason: "full" },
+          clarifyFallbackMessage: AUDIENCE_FOCUS,
+          recommendationMode: "none",
+          lowEngagement: false,
+          expertPlan: null
+        };
+      }
+    });
+    assert("bedding-reverse http 200", r.status === 200 && r.payload.ok === true);
+    assert("bedding-reverse not full", r.payload.assistantMessage !== AUDIENCE_FOCUS);
+    assert("bedding-reverse matters-only", r.payload.assistantMessage === MATTERS_ONLY);
+  }
+}
+
 if (failed) {
   console.error("\n" + failed + " mock-http-e2e failure(s)");
   process.exit(1);

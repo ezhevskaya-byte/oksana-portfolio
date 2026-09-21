@@ -28,6 +28,10 @@ import {
   isCustomerJourneySufficient,
   isExistingToolsSufficient,
   isDesiredFlowSufficient,
+  recoverSourcesFromTurns,
+  audienceMissingAspects,
+  resolveClarifyTarget,
+  deriveFieldStatus,
   READY_REPAIR_FALLBACK
 } from "../src/gate.js";
 import { createSmartBriefReply } from "../src/openai.js";
@@ -2570,6 +2574,182 @@ function livePlanReuse() {
       return s.quote === oldWho;
     })
   );
+}
+
+// ========== BF — partial WHAT_MATTERS without WHO (live retail regression) ==========
+{
+  const WHO_ONLY =
+    "Кто чаще всего к вам обращается — какой это тип клиентов или гостей?";
+  const livePartial = "продавец общается, качество, цена, ассортимент";
+  const variants = [
+    livePartial,
+    "важны цена, качество и выбор",
+    "смотрят на качество ткани, стоимость и ассортимент",
+    "главное цена и чтобы был хороший выбор",
+    "покупатели спрашивают про материал, цену и размеры"
+  ];
+
+  assert("TEST BF live not WHO", isAudienceWhoEvidence(livePartial) === false);
+  assert("TEST BF live is WHAT_MATTERS", isAudienceWhatMattersEvidence(livePartial) === true);
+
+  for (let i = 0; i < variants.length; i += 1) {
+    const v = variants[i];
+    assert(
+      "TEST BF variant[" + i + "] not WHO",
+      isAudienceWhoEvidence(v) === false
+    );
+    assert(
+      "TEST BF variant[" + i + "] is WHAT_MATTERS",
+      isAudienceWhatMattersEvidence(v) === true
+    );
+  }
+
+  const hist = [
+    { role: "user", content: "продажа постельного белья, реклама чтобы о нас больше людей узнало" },
+    { role: "assistant", content: AUDIENCE_FOCUS }
+  ];
+  const turns = buildUserTurns(hist, livePartial);
+  const recovered = recoverSourcesFromTurns("audienceInput", turns);
+  const turnsById = {};
+  for (let t = 0; t < turns.length; t += 1) turnsById[turns[t].id] = turns[t].text;
+
+  assert(
+    "TEST BF recovery has WHAT_MATTERS source",
+    recovered.some(function (s) {
+      return s.aspect === "what_matters" && isAudienceWhatMattersEvidence(s.quote);
+    })
+  );
+  assert(
+    "TEST BF recovery has no WHO source",
+    !recovered.some(function (s) {
+      return isAudienceWhoEvidence(s.quote);
+    })
+  );
+
+  const status = deriveFieldStatus("audienceInput", recovered, turnsById);
+  assert("TEST BF status partial", status === "partial");
+  const aspects = audienceMissingAspects(recovered, turnsById);
+  assert("TEST BF missing only WHO", aspects.length === 1 && aspects[0] === "who_or_segment");
+
+  const m = mergeBriefCoverage(null, emptyCoverage(), turns);
+  assert("TEST BF merge audience partial", m.coverage.audienceInput.status === "partial");
+  const missing = [{ key: "audienceInput", reason: "status_partial" }];
+  const target = resolveClarifyTarget(missing, m.coverage, turns);
+  assert("TEST BF clarify focus audience", target.focus === "audienceInput");
+  assert("TEST BF clarify aspect who only", target.aspect === "who_or_segment");
+
+  const msg = selectClarifyMessage(
+    {
+      nextInformationNeed: { focus: "audienceInput", reason: "model full reask" },
+      clarifyFallbackMessage: AUDIENCE_FOCUS
+    },
+    missing,
+    m.coverage,
+    turns
+  );
+  assert("TEST BF not full audience re-ask", msg !== AUDIENCE_FOCUS);
+  assert("TEST BF asks WHO only", msg === WHO_ONLY);
+
+  // HTTP path with prior continuum (business/goal already known — mirrors live after U1):
+  // empty model coverage + history recovery → WHO-only, never full audience re-ask.
+  const priorKnown = encodeBriefState(
+    Object.assign(emptyCoverage(), {
+      business: field("known", [src("u1", "продажа постельного белья", "what_business")]),
+      goal: field("known", [
+        src("u1", "реклама чтобы о нас больше людей узнало", "desired_outcome")
+      ])
+    })
+  );
+  const reply = await createSmartBriefReply({
+    apiKey: "t",
+    model: "m",
+    history: hist,
+    message: livePartial,
+    briefState: priorKnown,
+    callOpenAI: async function () {
+      return {
+        assistantMessage: "",
+        phase: "clarify",
+        done: false,
+        briefCoverage: emptyCoverage(),
+        nextInformationNeed: { focus: "audienceInput", reason: "full" },
+        clarifyFallbackMessage: AUDIENCE_FOCUS,
+        recommendationMode: "none",
+        lowEngagement: false,
+        expertPlan: null
+      };
+    }
+  });
+  assert("TEST BF http not full re-ask", reply.assistantMessage !== AUDIENCE_FOCUS);
+  assert("TEST BF http WHO-only", reply.assistantMessage === WHO_ONLY);
+  assert("TEST BF http phase clarify", reply.phase === "clarify");
+
+  // Same without briefState: model still supplies prior business/goal sources this turn.
+  const replyWipe = await createSmartBriefReply({
+    apiKey: "t",
+    model: "m",
+    history: hist,
+    message: livePartial,
+    briefState: null,
+    callOpenAI: async function () {
+      return {
+        assistantMessage: "",
+        phase: "clarify",
+        done: false,
+        briefCoverage: Object.assign(emptyCoverage(), {
+          business: field("known", [src("u1", "продажа постельного белья", "what_business")]),
+          goal: field("known", [
+            src("u1", "реклама чтобы о нас больше людей узнало", "desired_outcome")
+          ])
+        }),
+        nextInformationNeed: { focus: "audienceInput", reason: "full" },
+        clarifyFallbackMessage: AUDIENCE_FOCUS,
+        recommendationMode: "none",
+        lowEngagement: false,
+        expertPlan: null
+      };
+    }
+  });
+  assert("TEST BF wipe-http not full re-ask", replyWipe.assistantMessage !== AUDIENCE_FOCUS);
+  assert("TEST BF wipe-http WHO-only", replyWipe.assistantMessage === WHO_ONLY);
+}
+
+// ========== BG — reverse partial: WHO known, WHAT_MATTERS missing ==========
+{
+  const MATTERS_ONLY = "А что для этих людей обычно важнее всего при выборе?";
+  const whoOnly = "чаще женщины 30–60 лет";
+  assert("TEST BG who known", isAudienceWhoEvidence(whoOnly) === true);
+  assert("TEST BG matters not from who", isAudienceWhatMattersEvidence(whoOnly) === false);
+
+  const hist = [
+    { role: "user", content: "Продаю постельное бельё, нужен сайт." },
+    { role: "assistant", content: AUDIENCE_FOCUS }
+  ];
+  const turns = buildUserTurns(hist, whoOnly);
+  const m = mergeBriefCoverage(null, emptyCoverage(), turns);
+  assert("TEST BG merge partial", m.coverage.audienceInput.status === "partial");
+  const aspects = audienceMissingAspects(
+    m.coverage.audienceInput.sources,
+    Object.fromEntries(turns.map(function (t) { return [t.id, t.text]; }))
+  );
+  assert(
+    "TEST BG missing only WHAT_MATTERS",
+    aspects.length === 1 && aspects[0] === "what_matters"
+  );
+  const missing = [{ key: "audienceInput", reason: "status_partial" }];
+  const target = resolveClarifyTarget(missing, m.coverage, turns);
+  assert("TEST BG aspect what_matters", target.aspect === "what_matters");
+  const msg = selectClarifyMessage(
+    {
+      nextInformationNeed: { focus: "audienceInput", reason: "" },
+      clarifyFallbackMessage: AUDIENCE_FOCUS
+    },
+    missing,
+    m.coverage,
+    turns
+  );
+  assert("TEST BG not full audience re-ask", msg !== AUDIENCE_FOCUS);
+  assert("TEST BG asks WHAT_MATTERS only", msg === MATTERS_ONLY);
 }
 
 assert("schema has all critical keys", CRITICAL_COVERAGE_KEYS.length === 7);

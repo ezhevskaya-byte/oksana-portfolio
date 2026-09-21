@@ -2,6 +2,7 @@
 
 .smart-brief-page {
   min-height: 100vh;
+  overflow-x: clip;
 }
 
 .sb-hero {
@@ -9,8 +10,18 @@
   padding-bottom: clamp(2.5rem, 6vw, 4.5rem);
 }
 
+/* Intro / write: editorial measure aligned with homepage --measure */
 .sb-hero__inner {
-  max-width: 42rem;
+  max-width: var(--measure, 44rem); /* was 42rem */
+  box-sizing: border-box;
+}
+
+/*
+ * Dialogue is the primary work surface on desktop.
+ * Keep ~48rem work area for chat (within 720–800px brief).
+ */
+.smart-brief-page:has([data-sb-stage="dialogue"]:not([hidden])) .sb-hero__inner {
+  max-width: var(--measure-wide, 48rem); /* 768px */
 }
 
 .sb-back {
@@ -19,7 +30,7 @@
   margin-bottom: clamp(1.15rem, 2.4vw, 1.65rem);
   color: var(--ink-soft);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: var(--text-meta, 0.92rem);
   font-weight: 500;
 }
 
@@ -32,17 +43,17 @@
 }
 
 .sb-hero h1 {
-  font-size: clamp(1.85rem, 3.8vw, 2.85rem);
+  font-size: clamp(1.95rem, 3.8vw, 2.95rem);
   max-width: 14ch;
   line-height: 1.1;
 }
 
 .sb-lead {
-  max-width: 38rem;
+  max-width: var(--measure, 44rem);
   margin-top: 0.85rem;
   color: var(--ink-soft);
-  font-size: clamp(1rem, 1.35vw, 1.08rem);
-  line-height: 1.55;
+  font-size: var(--text-lead, 1.2rem);
+  line-height: 1.65;
 }
 
 .sb-accent {
@@ -57,7 +68,7 @@
 
 .sb-accent__label {
   color: var(--accent);
-  font-size: 0.74rem;
+  font-size: var(--text-eyebrow, 0.8125rem);
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -66,7 +77,7 @@
 .sb-accent__text {
   color: var(--ink);
   font-family: var(--font-serif);
-  font-size: clamp(1.12rem, 1.7vw, 1.32rem);
+  font-size: clamp(1.18rem, 1.7vw, 1.38rem);
   font-weight: 500;
   line-height: 1.28;
   letter-spacing: -0.015em;
@@ -178,6 +189,8 @@
   transition:
     opacity 0.28s var(--ease),
     transform 0.28s var(--ease);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .sb-stage.is-visible {
@@ -209,14 +222,26 @@
   max-width: 16ch;
 }
 
+/* Dialogue title/lead: same type scale as intro, less artificial narrowing */
+.sb-stage[data-sb-stage="dialogue"] .sb-stage__title {
+  max-width: min(100%, 24ch);
+}
+
+.sb-stage[data-sb-stage="dialogue"] .sb-lead {
+  max-width: min(100%, var(--measure-wide, 48rem));
+  font-size: var(--text-lead, 1.2rem);
+}
+
 .sb-field {
   display: block;
   margin-top: clamp(1.35rem, 2.8vw, 1.85rem);
+  max-width: 100%;
 }
 
 .sb-textarea {
   display: block;
   width: 100%;
+  max-width: 100%;
   min-height: 12rem;
   padding: 1.15rem 1.2rem;
   border: 1px solid var(--line-strong);
@@ -225,6 +250,7 @@
   color: var(--ink);
   resize: vertical;
   line-height: 1.55;
+  box-sizing: border-box;
   box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 4%, transparent);
   transition:
     border-color 0.25s var(--ease),
@@ -312,6 +338,7 @@
   flex-wrap: wrap;
   gap: 0.7rem;
   margin-top: clamp(1.35rem, 2.8vw, 1.85rem);
+  max-width: 100%;
 }
 
 .sb-field-note {
@@ -352,24 +379,31 @@
   display: grid;
   gap: 0.85rem;
   margin-top: 1.25rem;
-  max-height: min(52vh, 28rem);
+  max-width: 100%;
+  max-height: min(52vh, 32rem);
+  overflow-x: hidden;
   overflow-y: auto;
   padding-right: 0.25rem;
   scroll-behavior: smooth;
+  box-sizing: border-box;
 }
 
+/* Messages use the dialogue column (was capped at 36rem inside 42rem → “tiny chat”) */
 .sb-msg {
-  max-width: min(100%, 36rem);
-  padding: 0.85rem 1rem;
+  max-width: min(100%, 46rem);
+  padding: 0.9rem 1.1rem;
   border-radius: var(--radius-sm);
-  line-height: 1.55;
-  font-size: 0.98rem;
+  line-height: 1.6;
+  font-size: 1.05rem;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-word;
+  box-sizing: border-box;
 }
 
 .sb-msg--user {
   justify-self: end;
+  max-width: min(100%, 40rem);
   color: var(--ink);
   background: color-mix(in srgb, var(--accent) 14%, var(--bg-paper));
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
@@ -377,6 +411,7 @@
 
 .sb-msg--assistant {
   justify-self: start;
+  max-width: min(100%, 46rem);
   color: var(--ink-soft);
   background: color-mix(in srgb, var(--bg-paper) 88%, transparent);
   border: 1px solid var(--line);
@@ -406,7 +441,20 @@
   }
 }
 
+/* Tablet / narrow desktop: full available width inside container padding */
+@media (max-width: 1100px) {
+  .sb-hero__inner,
+  .smart-brief-page:has([data-sb-stage="dialogue"]:not([hidden])) .sb-hero__inner {
+    max-width: min(var(--measure-wide, 48rem), 100%);
+  }
+}
+
 @media (max-width: 700px) {
+  .sb-hero__inner,
+  .smart-brief-page:has([data-sb-stage="dialogue"]:not([hidden])) .sb-hero__inner {
+    max-width: 100%;
+  }
+
   .sb-modes {
     grid-template-columns: 1fr;
   }
@@ -423,7 +471,8 @@
   }
 
   .sb-hero h1,
-  .sb-stage__title {
+  .sb-stage__title,
+  .sb-stage[data-sb-stage="dialogue"] .sb-stage__title {
     max-width: none;
   }
 
@@ -435,6 +484,12 @@
     min-height: 11rem;
   }
 
+  .sb-msg,
+  .sb-msg--user,
+  .sb-msg--assistant {
+    max-width: 100%;
+  }
+
   .sb-actions {
     flex-direction: column;
     align-items: stretch;
@@ -442,6 +497,8 @@
 
   .sb-actions .btn {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 

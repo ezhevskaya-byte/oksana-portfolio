@@ -125,6 +125,27 @@ export function looksLikeGuestFaqRecount(quote) {
 }
 
 /**
+ * Count distinct classic buyer-choice criteria in text (closed set).
+ * Used to recognize WHAT_MATTERS answers that list price/quality/assortment
+ * without repeating the full "при выборе" framing.
+ */
+function countChoiceCriteria(q) {
+  const re =
+    /(?:цен[а-я]*|стоимост[а-я]*|качеств[а-я]*|ассортимент[а-я]*|выбор[а-я]*|материал[а-я]*|размер[а-я]*|доставк[а-я]*|ткан[а-я]*|сроки)/g;
+  const found = q.match(re);
+  if (!found) return 0;
+  const seen = Object.create(null);
+  let n = 0;
+  for (let i = 0; i < found.length; i += 1) {
+    const key = found[i].slice(0, 4);
+    if (seen[key]) continue;
+    seen[key] = true;
+    n += 1;
+  }
+  return n;
+}
+
+/**
  * WHO: user explicitly describes who books / visits / is a typical client.
  * Aspect who_or_segment alone is NOT enough.
  */
@@ -140,9 +161,11 @@ export function isAudienceWhoEvidence(quote) {
     return false;
   }
 
-  const describesSegment =
-    /(?:чаще всего|в основном|обычно|типичн)/.test(q) &&
-    /(?:отдых|приезж|останавл|бронир|клиент|гост|пар|семь|люд)/.test(q);
+  const frequency = /(?:чаще(?:\s+всего)?|в основном|обычно|типичн)/.test(q);
+  const segmentCore =
+    /(?:отдых|приезж|останавл|бронир|клиент|гост|пар|семь|люд|женщин|мужчин|покупател)/.test(q);
+
+  const describesSegment = frequency && segmentCore;
   const verbThenSegment =
     /(?:отдых|приезж|останавл|бронир)[а-я]{0,8}\s+(?:у нас\s+)?(?:пар|семь|люди|клиент|гост)/.test(
       q
@@ -152,31 +175,47 @@ export function isAudienceWhoEvidence(quote) {
   const pairsFamilies =
     /(?:пары|семьи)(?:\s+\d|\s+с\s|\s+и\s|\s*$|,)/.test(q) &&
     /(?:отдых|приезж|останавл|у нас|к нам|чаще|обычно)/.test(q);
+  // Demographic + age band: «чаще женщины 30–60 лет»
+  const demoWithAge =
+    frequency &&
+    /(?:женщин|мужчин|сем[ьия]|пар[ыа]|покупател|клиент|гост|люд)/.test(q) &&
+    /(?:\d{1,2}\s*[–\-—]\s*\d{1,2}|\d{1,2}\s*(?:лет|года))/.test(q);
 
-  return describesSegment || verbThenSegment || namedClients || pairsFamilies;
+  return (
+    describesSegment || verbThenSegment || namedClients || pairsFamilies || demoWithAge
+  );
 }
 
 /**
- * WHAT_MATTERS: user explicitly links criteria / doubts to client choice.
- * Bare property facts or unframed FAQ recounts do not count.
+ * WHAT_MATTERS: user links criteria / doubts to client choice.
+ * Accepts framed answers OR a list of classic purchase criteria.
+ * Bare property facts / unframed FAQ without criteria list do not count.
+ * Ambiguous noise (e.g. «продавец общается») never invents WHO.
  */
 export function isAudienceWhatMattersEvidence(quote) {
   const q = normalizeSpan(quote);
   if (!q || q.length < GATE_POLICY.minQuoteChars) return false;
 
-  // Bare property facts without choice framing.
+  const criteriaN = countChoiceCriteria(q);
+
+  // Bare property facts without choice framing and without multi-criteria list.
   if (
     (/до моря/.test(q) || /бассейн/.test(q) || /лазаревск/.test(q) || /гостевой дом/.test(q)) &&
-    !/при выборе|важно|сомнева|критер/.test(q)
+    !/при выборе|важно|сомнева|критер/.test(q) &&
+    criteriaN < 2
   ) {
     if (!/при выборе/.test(q)) {
-      // FAQ recount without choice frame
-      if (/спрашивают/.test(q) && !/при выборе/.test(q)) return false;
+      if (/спрашивают/.test(q) && criteriaN < 2) return false;
       if (!/спрашивают|важно|при выборе/.test(q)) return false;
     }
   }
 
-  if (/спрашивают/.test(q) && !/при выборе|в первую очередь|им важно|важно при/.test(q)) {
+  // Unframed FAQ recount without a criteria list — not WHAT_MATTERS.
+  if (
+    /спрашивают/.test(q) &&
+    !/при выборе|в первую очередь|им важно|важно при|важн/.test(q) &&
+    criteriaN < 2
+  ) {
     return false;
   }
 
@@ -187,6 +226,15 @@ export function isAudienceWhatMattersEvidence(quote) {
     return true;
   }
   if (/в первую очередь/.test(q) && /спрашивают|важно|смотр/.test(q)) return true;
+
+  // Importance / attention framing + ≥1 classic criterion.
+  if (/(?:важн[а-я]*|главн[а-я]*)/.test(q) && criteriaN >= 1) return true;
+  if (/(?:смотрят на|интересует|обращают внимание)/.test(q) && criteriaN >= 1) return true;
+
+  // Two+ classic criteria answers "what matters" even without framing
+  // (e.g. «качество, цена, ассортимент» after a full audience question).
+  if (criteriaN >= 2) return true;
+
   return false;
 }
 

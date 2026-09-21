@@ -16,7 +16,17 @@
   --radius: 18px;
   --radius-sm: 12px;
   --header-h: 4.5rem;
-  --max: 72rem;
+  /* Layout: wider work surface; text measure stays separate below */
+  --max: 78rem; /* was 72rem / 1152px → 1248px */
+  --gutter: 2.75rem; /* was hardcoded 2.5rem in container */
+  --measure: 44rem; /* readable text column — not full container */
+  --measure-wide: 48rem;
+  /* Type scale (browser default 16px root) */
+  --text-body: 1.125rem; /* 18px — was 1.0625rem / 17px */
+  --text-lead: 1.2rem; /* ~19.2px — was 1.12rem */
+  --text-ui: 0.98rem; /* nav/buttons — was 0.92rem */
+  --text-eyebrow: 0.8125rem; /* 13px — was 0.78rem */
+  --text-meta: 0.92rem;
   --font-serif: "Fraunces", "Iowan Old Style", "Palatino Linotype", serif;
   --font-sans: "Manrope", "Segoe UI", sans-serif;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -43,7 +53,7 @@ body {
   color: var(--ink);
   background: var(--bg);
   font-family: var(--font-sans);
-  font-size: 1.0625rem;
+  font-size: var(--text-body);
   line-height: 1.7;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -132,12 +142,12 @@ textarea {
 }
 
 .container {
-  width: min(100% - 2.5rem, var(--max));
+  width: min(100% - var(--gutter), var(--max));
   margin-inline: auto;
 }
 
 .container-wide {
-  width: min(100% - 2.5rem, 82rem);
+  width: min(100% - var(--gutter), 86rem);
   margin-inline: auto;
 }
 
@@ -150,7 +160,7 @@ textarea {
 }
 
 .section-head {
-  max-width: 42rem;
+  max-width: var(--measure);
   margin-bottom: clamp(2.5rem, 5vw, 4rem);
 }
 
@@ -158,20 +168,21 @@ textarea {
   display: inline-block;
   margin-bottom: 0.9rem;
   color: var(--accent);
-  font-size: 0.78rem;
+  font-size: var(--text-eyebrow);
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .section-title {
-  font-size: clamp(1.75rem, 3.4vw, 2.75rem);
+  font-size: clamp(1.85rem, 3.5vw, 2.85rem);
 }
 
 .lead {
   margin-top: 1.15rem;
   color: var(--ink-soft);
-  font-size: 1.12rem;
+  font-size: var(--text-lead);
+  line-height: 1.65;
 }
 
 .sr-only {
@@ -240,13 +251,13 @@ textarea {
 
 .logo__name {
   font-family: var(--font-sans);
-  font-size: 0.98rem;
+  font-size: var(--text-ui);
   font-weight: 650;
 }
 
 .logo__note {
   color: var(--ink-faint);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   letter-spacing: 0.04em;
 }
 
@@ -258,7 +269,7 @@ textarea {
 
 .nav a {
   text-decoration: none;
-  font-size: 0.92rem;
+  font-size: var(--text-ui);
   font-weight: 500;
 }
 
@@ -321,13 +332,13 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.85rem;
-  min-width: 2.85rem;
-  padding: 0.7rem 1.25rem;
+  min-height: 2.95rem;
+  min-width: 2.95rem;
+  padding: 0.75rem 1.35rem;
   border-radius: 12px;
   border: 1px solid transparent;
   text-decoration: none;
-  font-size: 0.92rem;
+  font-size: var(--text-ui);
   font-weight: 650;
   letter-spacing: 0.01em;
   transition: background 0.2s var(--ease), color 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.2s var(--ease);
@@ -593,17 +604,17 @@ textarea {
 
 .section-title--expertise {
   max-width: none;
-  font-size: clamp(1.55rem, 2.05vw, 1.95rem);
-  line-height: 1.1;
+  font-size: clamp(1.7rem, 2.2vw, 2.15rem);
+  line-height: 1.12;
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
 
 .section-head--expertise .lead {
-  max-width: 38rem;
+  max-width: var(--measure);
   margin-top: 0.85rem;
-  font-size: 1.06rem;
-  line-height: 1.55;
+  font-size: var(--text-lead);
+  line-height: 1.6;
 }
 
 .expertise-body {
@@ -1587,6 +1598,46 @@ article.project-card {
   font-size: 1.02rem;
 }
 
+/* Smart Brief entry — editorial bridge after process */
+.section--brief-entry {
+  padding-block: clamp(3.25rem, 7vw, 5.5rem);
+}
+
+.brief-entry {
+  max-width: min(var(--measure), 100%);
+  padding-left: clamp(1rem, 2.2vw, 1.35rem);
+  border-left: 2px solid var(--accent);
+}
+
+.brief-entry .eyebrow {
+  margin-bottom: 0.55rem;
+}
+
+.brief-entry .section-title {
+  max-width: 16ch;
+  font-size: clamp(1.95rem, 3.5vw, 2.75rem);
+}
+
+.brief-entry__lead {
+  max-width: var(--measure);
+  margin-top: 0.95rem;
+}
+
+.brief-entry__actions {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  margin-top: clamp(1.35rem, 2.8vw, 1.85rem);
+}
+
+.brief-entry__meta {
+  margin: 0;
+  max-width: 28rem;
+  color: var(--ink-faint);
+  font-size: var(--text-meta);
+  line-height: 1.5;
+}
+
 /* Bonus */
 .bonus {
   padding-block: clamp(3.5rem, 8vw, 6rem);
@@ -1787,6 +1838,36 @@ article.project-card {
   line-height: 1.55;
 }
 
+.contact-brief-path {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1.35rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: var(--text-meta);
+  line-height: 1.5;
+}
+
+.contact-brief-path__link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.contact-brief-path__link:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.contact-brief-path__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 .contact-slots {
   display: grid;
   gap: 0.8rem;
@@ -1879,7 +1960,7 @@ a.contact-card:focus-visible .contact-card__arrow {
   padding: 2rem 0 2.4rem;
   border-top: 1px solid var(--line);
   color: var(--ink-soft);
-  font-size: 0.92rem;
+  font-size: var(--text-meta);
 }
 
 .footer__inner {
@@ -2842,6 +2923,26 @@ a.contact-card:focus-visible .contact-card__arrow {
     grid-template-columns: 1fr;
   }
 
+  .brief-entry {
+    max-width: 100%;
+    padding-left: 0.95rem;
+  }
+
+  .brief-entry .section-title {
+    max-width: none;
+  }
+
+  .brief-entry__actions {
+    width: 100%;
+  }
+
+  .brief-entry__actions .btn {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    justify-content: center;
+  }
+
   .section-title--expertise {
     white-space: normal;
     font-size: clamp(1.65rem, 4.1vw, 2.1rem);
@@ -2985,9 +3086,13 @@ a.contact-card:focus-visible .contact-card__arrow {
 }
 
 @media (max-width: 700px) {
+  :root {
+    --gutter: 1.5rem;
+  }
+
   .container,
   .container-wide {
-    width: min(100% - 1.5rem, var(--max));
+    width: min(100% - var(--gutter), var(--max));
   }
 
   .hero h1 {
