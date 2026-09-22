@@ -2347,6 +2347,48 @@ function livePlanReuse() {
   );
 }
 
+// ========== AY — Gate1 fail must NOT second OpenAI call (client timeout guard) ==========
+{
+  const JOURNEY_FOCUS =
+    "Как сейчас обычно проходит путь клиента: от первого знакомства до заявки или покупки?";
+  const hist = [
+    { role: "user", content: "Магазин постельного белья, нужен сайт." },
+    { role: "assistant", content: "Здравствуйте. Я Марк." },
+    { role: "user", content: "Чаще женщины 30–50. Важны цена и качество." },
+    { role: "assistant", content: JOURNEY_FOCUS }
+  ];
+  const journeyAnswer =
+    "Находят в Instagram, пишут в WhatsApp, я уточняю заказ и цену, потом предоплата и отправка.";
+  let calls = 0;
+  const reply = await createSmartBriefReply({
+    apiKey: "t",
+    model: "m",
+    history: hist,
+    message: journeyAnswer,
+    briefState: null,
+    callOpenAI: async function () {
+      calls += 1;
+      // Dangerous production pattern: Gate1 missing + focus none + empty fallback
+      // previously triggered a second OpenAI round-trip (> client 55s timeout).
+      return {
+        assistantMessage: "",
+        phase: "clarify",
+        done: false,
+        briefCoverage: emptyCoverage(),
+        nextInformationNeed: { focus: "none", reason: "" },
+        clarifyFallbackMessage: "",
+        recommendationMode: "none",
+        lowEngagement: false,
+        expertPlan: null
+      };
+    }
+  });
+  assert("TEST AY single OpenAI call only", calls === 1);
+  assert("TEST AY stays clarify", reply.phase === "clarify");
+  assert("TEST AY has server clarify text", typeof reply.assistantMessage === "string" && reply.assistantMessage.length > 10);
+  assert("TEST AY not empty", reply.assistantMessage.trim().length > 0);
+}
+
 // ========== BA — NO briefState: history recovery keeps audience ==========
 {
   const ctx = liveTurns(4);

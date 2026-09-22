@@ -426,77 +426,15 @@ export async function createSmartBriefReply({
     });
   }
 
-  // Gate1 fail (or other block): clarify using real missing; optional clarify-repair.
-  const blockedClarify = toClarifyPublic(
+  // Gate1 fail (or other block): server can always synthesize clarify from `missing`
+  // via selectClarifyMessage. Do NOT spend a second OpenAI round-trip here —
+  // openaiTimeoutMs (45s) × 2 exceeds the browser clientTimeoutMs (55s) and aborts
+  // the fetch, which surfaces as the generic frontend error and invites retry loops.
+  return toClarifyPublic(
     turn,
     decision.missing || (decision.coverageEval && decision.coverageEval.missing),
     briefState,
     (decision.coverageEval && decision.coverageEval.coverage) || turn.briefCoverage,
-    userTurns
-  );
-  if (turn.clarifyFallbackMessage) {
-    return blockedClarify;
-  }
-  if (turn.nextInformationNeed.focus !== "none") {
-    return blockedClarify;
-  }
-
-  const repairTurn = await callModel({
-    apiKey,
-    model,
-    input,
-    instructions: buildClarifyRepairInstructions(
-      decision.reason,
-      (decision.missing || (decision.coverageEval && decision.coverageEval.missing) || []),
-      userTurns
-    )
-  });
-
-  const repairMerged = mergeBriefCoverage(briefState, repairTurn.briefCoverage, userTurns);
-  repairTurn.briefCoverage = repairMerged.coverage;
-  const repairBriefState = repairMerged.briefState;
-
-  const repairDecision = enforceGates(repairTurn, { history, message });
-
-  if (isRecommendDecision(repairDecision)) {
-    // Clarify-repair must not skip Gate1: only allow recommend if somehow now ready+gated.
-    return toRecommendPublic(repairDecision.publicTurn, repairBriefState);
-  }
-
-  if (repairDecision.action === "allow" && isCoverageReady(repairDecision)) {
-    return runReadyRecommendRepair({
-      apiKey,
-      model,
-      input,
-      history,
-      message,
-      userTurns,
-      briefState: repairBriefState,
-      reason: "clarify_repair_became_ready",
-      callModel
-    });
-  }
-
-  if (repairDecision.action === "allow") {
-    return toClarifyPublic(
-      repairTurn,
-      repairDecision.coverageEval && repairDecision.coverageEval.missing,
-      repairBriefState,
-      repairDecision.coverageEval && repairDecision.coverageEval.coverage,
-      userTurns
-    );
-  }
-
-  const missing =
-    (decision.missing ||
-      (decision.coverageEval && decision.coverageEval.missing) ||
-      evaluateBriefReady(repairTurn.briefCoverage, userTurns).missing) ||
-    [];
-  return toClarifyPublic(
-    repairTurn,
-    missing,
-    repairBriefState,
-    repairTurn.briefCoverage,
     userTurns
   );
 }
