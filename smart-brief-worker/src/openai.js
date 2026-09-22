@@ -4,7 +4,6 @@ import { TEXT_FORMAT } from "./schema.js";
 import {
   enforceGates,
   pickMissingFocus,
-  evaluateBriefReady,
   buildUserTurns,
   formatUserTurnsBlock,
   selectClarifyMessage,
@@ -305,45 +304,22 @@ function isCoverageReady(decision) {
 }
 
 /**
- * Controlled recommend repair: model must produce recommendation; Gate1+Gate2 re-checked.
- * Never publishes raw assistantMessage without Expert Gate. Never asks closed MVB fields.
+ * INVARIANT: at most ONE OpenAI provider call per POST /api/chat.
+ * When coverage is READY but the first model turn is not publishable
+ * (clarify / Gate2 fail), never call the provider again — return a
+ * deterministic server fallback that does not invent architecture,
+ * does not re-ask closed MVB fields, and never publishes ungated text.
  */
-async function runReadyRecommendRepair({
-  apiKey,
-  model,
-  input,
-  history,
-  message,
-  userTurns,
-  briefState,
-  reason,
-  callModel
-}) {
-  const call = callModel || callOpenAI;
-  const repairTurn = await call({
-    apiKey,
-    model,
-    input,
-    instructions: buildRecommendRepairInstructions(reason || "ready_but_clarify", userTurns)
-  });
-
-  const repairMerged = mergeBriefCoverage(briefState, repairTurn.briefCoverage, userTurns);
-  repairTurn.briefCoverage = repairMerged.coverage;
-  const repairBriefState = repairMerged.briefState;
-
-  const repairDecision = enforceGates(repairTurn, { history, message });
-
-  if (isRecommendDecision(repairDecision)) {
-    return toRecommendPublic(repairDecision.publicTurn, repairBriefState);
-  }
-
-  // Gate2 fail or still clarify — never invent MVB question for a ready brief.
-  return toReadyFallbackPublic(repairBriefState);
+function readyUnpublishableFallback(briefState) {
+  return toReadyFallbackPublic(briefState);
 }
 
 /**
  * Main chat generation with B′ grounding, D′ briefState merge, server-owned routing.
  * Optional callOpenAI inject for deterministic tests.
+ *
+ * Provider call budget: exactly one `await callModel(...)` in this function.
+ * No repair / second-round provider paths remain.
  */
 export async function createSmartBriefReply({
   apiKey,
@@ -361,6 +337,7 @@ export async function createSmartBriefReply({
   });
   const instructions = buildInstructions(RUNTIME_INSTRUCTIONS, userTurns, firstTurn);
 
+  // Sole provider round-trip for this request.
   let turn = await callModel({ apiKey, model, input, instructions });
 
   const merged = mergeBriefCoverage(priorBriefState, turn.briefCoverage, userTurns);
@@ -385,19 +362,9 @@ export async function createSmartBriefReply({
     return toRecommendPublic(decision.publicTurn, briefState);
   }
 
-  // Gate1 READY but model still on clarify / none → recommend repair (not MVB re-ask).
+  // Gate1 READY but model still on clarify / none → server fallback (no 2nd provider call).
   if (decision.action === "allow" && isCoverageReady(decision)) {
-    return runReadyRecommendRepair({
-      apiKey,
-      model,
-      input,
-      history,
-      message,
-      userTurns,
-      briefState,
-      reason: "ready_but_model_clarify",
-      callModel
-    });
+    return readyUnpublishableFallback(briefState);
   }
 
   // Clarify with real missing fields.
@@ -411,25 +378,13 @@ export async function createSmartBriefReply({
     );
   }
 
-  // Expert Gate failed while coverage READY → recommend repair (never publish raw text).
+  // Expert Gate failed while coverage READY → server fallback (never publish raw text).
   if (decision.reason === "gate2_fail" && isCoverageReady(decision)) {
-    return runReadyRecommendRepair({
-      apiKey,
-      model,
-      input,
-      history,
-      message,
-      userTurns,
-      briefState,
-      reason: "gate2_fail",
-      callModel
-    });
+    return readyUnpublishableFallback(briefState);
   }
 
-  // Gate1 fail (or other block): server can always synthesize clarify from `missing`
-  // via selectClarifyMessage. Do NOT spend a second OpenAI round-trip here —
-  // openaiTimeoutMs (45s) × 2 exceeds the browser clientTimeoutMs (55s) and aborts
-  // the fetch, which surfaces as the generic frontend error and invites retry loops.
+  // Gate1 fail (or other block): server synthesize clarify from `missing`.
+  // No second OpenAI round-trip — openaiTimeoutMs × 2 exceeds clientTimeoutMs.
   return toClarifyPublic(
     turn,
     decision.missing || (decision.coverageEval && decision.coverageEval.missing),
@@ -451,7 +406,7 @@ export const __test__ = {
   toRecommendPublic,
   toClarifyPublic,
   toReadyFallbackPublic,
+  readyUnpublishableFallback,
   buildInstructions,
-  createSmartBriefReply,
-  runReadyRecommendRepair
+  createSmartBriefReply
 };

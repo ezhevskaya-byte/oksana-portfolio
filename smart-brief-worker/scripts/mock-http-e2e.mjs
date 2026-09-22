@@ -315,9 +315,12 @@ function guesthouseMock() {
         };
       }
       if (n === 5) {
+        // READY turn: publishable recommend on the FIRST (only) provider call.
+        // Second-call RECOMMEND REPAIR is no longer part of the architecture.
         return {
-          assistantMessage: "",
-          phase: "clarify",
+          assistantMessage:
+            "Рекомендую компактный сайт с подключением вашего готового модуля онлайн-бронирования — календарь и цены уже есть, бронирование с нуля строить не нужно.",
+          phase: "recommend",
           done: false,
           briefCoverage: Object.assign(cov, {
             existingTools: field([
@@ -335,12 +338,11 @@ function guesthouseMock() {
               )
             ])
           }),
-          // Stay on clarify even if ready — triggers recommend repair
           nextInformationNeed: { focus: "none", reason: "" },
-          clarifyFallbackMessage: "Могу предложить направление?",
-          recommendationMode: "none",
+          clarifyFallbackMessage: "",
+          recommendationMode: "normal",
           lowEngagement: false,
-          expertPlan: null
+          expertPlan: guestReusePlan()
         };
       }
       // U6+ if needed
@@ -453,18 +455,18 @@ function nicheMock(planOverrides, quotes) {
         };
       }
       return {
-        assistantMessage: "",
-        phase: "clarify",
+        assistantMessage: q.recommendText,
+        phase: "recommend",
         done: false,
         briefCoverage: Object.assign(cov, {
           existingTools: field([src("u5", q.tools, "tools")]),
           desiredFlow: field([src("u5", q.flow, "ideal_flow")])
         }),
         nextInformationNeed: { focus: "none", reason: "" },
-        clarifyFallbackMessage: "Можем перейти к рекомендации?",
-        recommendationMode: "none",
+        clarifyFallbackMessage: "",
+        recommendationMode: "normal",
         lowEngagement: false,
-        expertPlan: null
+        expertPlan: reusePlan(planOverrides)
       };
     },
     recommend: function () {

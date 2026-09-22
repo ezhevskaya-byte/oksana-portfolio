@@ -2062,18 +2062,6 @@ function livePlanReuse() {
     lowEngagement: false,
     expertPlan: null
   };
-  const recommendRepair = {
-    assistantMessage:
-      "Рекомендую компактный сайт с подключением вашего готового модуля онлайн-бронирования — без новой системы бронирования с нуля.",
-    phase: "recommend",
-    done: false,
-    briefCoverage: emptyCoverage(),
-    nextInformationNeed: { focus: "none", reason: "" },
-    clarifyFallbackMessage: "",
-    recommendationMode: "normal",
-    lowEngagement: false,
-    expertPlan: livePlanReuse()
-  };
 
   let calls = 0;
   const reply = await createSmartBriefReply({
@@ -2084,22 +2072,17 @@ function livePlanReuse() {
     briefState: bs,
     callOpenAI: async function () {
       calls += 1;
-      if (calls === 1) return clarifyTurn;
-      return recommendRepair;
+      return clarifyTurn;
     }
   });
-  assert("TEST AS initial model was clarify then repair", calls === 2);
-  assert("TEST AS public phase recommend", reply.phase === "recommend");
+  assert("TEST AS single provider call", calls === 1);
+  assert("TEST AS ready uses server fallback not recommend", reply.phase === "clarify");
+  assert("TEST AS fallback text", reply.assistantMessage === READY_REPAIR_FALLBACK);
   assert("TEST AS no audience prompt", reply.assistantMessage !== AUDIENCE_FOCUS);
   assert(
     "TEST AS no MVB FOCUS_PROMPT",
     reply.assistantMessage.indexOf("Кто чаще всего") === -1 &&
       reply.assistantMessage.indexOf("Какими инструментами") === -1
-  );
-  assert(
-    "TEST AS reuses booking module",
-    /модул|бронир/i.test(reply.assistantMessage) &&
-      !/с нуля построить систему бронирования/i.test(reply.assistantMessage)
   );
 }
 
@@ -2145,7 +2128,7 @@ function livePlanReuse() {
   assert("TEST AU not flow FOCUS", !/^В идеале что клиент должен/.test(msg));
 }
 
-// ========== AV — READY REPAIR SUCCESS ==========
+// ========== AV — READY + clarify: single call + server fallback (no 2nd provider) ==========
 {
   const ctx = liveTurns(5);
   const prior = mergeBriefCoverage(
@@ -2183,42 +2166,26 @@ function livePlanReuse() {
     briefState: prior.briefState,
     callOpenAI: async function () {
       calls += 1;
-      if (calls === 1) {
-        return {
-          assistantMessage: "",
-          phase: "clarify",
-          done: false,
-          briefCoverage: emptyCoverage(),
-          nextInformationNeed: { focus: "none", reason: "" },
-          clarifyFallbackMessage: "Продолжим?",
-          recommendationMode: "none",
-          lowEngagement: false,
-          expertPlan: null
-        };
-      }
       return {
-        assistantMessage:
-          "Оптимально: сайт с интеграцией вашего модуля онлайн-бронирования (календарь и цены уже есть).",
-        phase: "recommend",
+        assistantMessage: "",
+        phase: "clarify",
         done: false,
         briefCoverage: emptyCoverage(),
         nextInformationNeed: { focus: "none", reason: "" },
-        clarifyFallbackMessage: "",
-        recommendationMode: "normal",
+        clarifyFallbackMessage: "Продолжим?",
+        recommendationMode: "none",
         lowEngagement: false,
-        expertPlan: livePlanReuse()
+        expertPlan: null
       };
     }
   });
-  assert("TEST AV repaired to recommend", reply.phase === "recommend");
-  assert("TEST AV public recommendation text", /модул|сайт/i.test(reply.assistantMessage));
-  assert(
-    "TEST AV reuse visible",
-    /модул|календар|интеграц|подключ/i.test(reply.assistantMessage)
-  );
+  assert("TEST AV single provider call", calls === 1);
+  assert("TEST AV server fallback phase", reply.phase === "clarify");
+  assert("TEST AV fallback text", reply.assistantMessage === READY_REPAIR_FALLBACK);
+  assert("TEST AV no MVB re-ask", reply.assistantMessage !== AUDIENCE_FOCUS);
 }
 
-// ========== AW — READY REPAIR FAILS EXPERT GATE ==========
+// ========== AW — READY + gate2_fail: single call + server fallback ==========
 {
   const ctx = liveTurns(5);
   const prior = mergeBriefCoverage(
@@ -2255,22 +2222,8 @@ function livePlanReuse() {
     briefState: prior.briefState,
     callOpenAI: async function () {
       calls += 1;
-      if (calls === 1) {
-        return {
-          assistantMessage: "Сырая рекомендация без плана — сайт с бронированием с нуля.",
-          phase: "recommend",
-          done: false,
-          briefCoverage: emptyCoverage(),
-          nextInformationNeed: { focus: "none", reason: "" },
-          clarifyFallbackMessage: "",
-          recommendationMode: "normal",
-          lowEngagement: false,
-          expertPlan: null
-        };
-      }
-      // Repair still fails Gate2 (empty reuseNote / missing plan fields)
       return {
-        assistantMessage: "Сырая рекомендация после repair — бронирование с нуля.",
+        assistantMessage: "Сырая рекомендация без плана — сайт с бронированием с нуля.",
         phase: "recommend",
         done: false,
         briefCoverage: emptyCoverage(),
@@ -2278,10 +2231,11 @@ function livePlanReuse() {
         clarifyFallbackMessage: "",
         recommendationMode: "normal",
         lowEngagement: false,
-        expertPlan: validPlan({ reuseNote: "" })
+        expertPlan: null
       };
     }
   });
+  assert("TEST AW single provider call", calls === 1);
   assert("TEST AW not public recommend", reply.phase !== "recommend");
   assert("TEST AW not raw message", reply.assistantMessage.indexOf("Сырая рекомендация") === -1);
   assert("TEST AW safe fallback", reply.assistantMessage === READY_REPAIR_FALLBACK);
@@ -2387,6 +2341,172 @@ function livePlanReuse() {
   assert("TEST AY stays clarify", reply.phase === "clarify");
   assert("TEST AY has server clarify text", typeof reply.assistantMessage === "string" && reply.assistantMessage.length > 10);
   assert("TEST AY not empty", reply.assistantMessage.trim().length > 0);
+}
+
+// ========== AZ — PROVIDER CALL BUDGET INVARIANT (≤1 per POST) ==========
+{
+  const ctx = liveTurns(5);
+  const prior = mergeBriefCoverage(
+    null,
+    Object.assign(emptyCoverage(), {
+      business: field("known", [src("u1", "небольшой гостевой дом", "what_business")]),
+      goal: field("known", [src("u2", "Хочется меньше зависеть от Авито", "desired_outcome")]),
+      audienceInput: field("known", [
+        src("u3", LIVE_WHO, "who_or_segment"),
+        src("u3", LIVE_MATTERS, "what_matters")
+      ]),
+      customerJourney: field("known", [src("u4", LIVE.u4, "path_steps")]),
+      friction: field("known", [
+        src("u2", "не приходилось каждому гостю заново отвечать на одни и те же вопросы", "pain")
+      ]),
+      existingTools: field("known", [src("u5", LIVE.u5, "tools")]),
+      desiredFlow: field("known", [
+        src(
+          "u5",
+          "Через него гость может сам посмотреть свободные номера и оформить бронь.",
+          "ideal_flow"
+        )
+      ])
+    }),
+    ctx.userTurns
+  );
+
+  // D — normal recommend: exactly 1 call
+  {
+    let calls = 0;
+    const reply = await createSmartBriefReply({
+      apiKey: "t",
+      model: "m",
+      history: ctx.history,
+      message: ctx.message,
+      briefState: prior.briefState,
+      callOpenAI: async function () {
+        calls += 1;
+        return {
+          assistantMessage:
+            "Рекомендую сайт с подключением вашего модуля онлайн-бронирования.",
+          phase: "recommend",
+          done: false,
+          briefCoverage: emptyCoverage(),
+          nextInformationNeed: { focus: "none", reason: "" },
+          clarifyFallbackMessage: "",
+          recommendationMode: "normal",
+          lowEngagement: false,
+          expertPlan: livePlanReuse()
+        };
+      }
+    });
+    assert("TEST AZ-D normal recommend single call", calls === 1);
+    assert("TEST AZ-D phase recommend", reply.phase === "recommend");
+  }
+
+  // E — first-turn: ≤1 call
+  {
+    let calls = 0;
+    const reply = await createSmartBriefReply({
+      apiKey: "t",
+      model: "m",
+      history: [],
+      message: LIVE.u1,
+      briefState: null,
+      callOpenAI: async function () {
+        calls += 1;
+        return {
+          assistantMessage: "",
+          phase: "clarify",
+          done: false,
+          briefCoverage: emptyCoverage(),
+          nextInformationNeed: { focus: "none", reason: "" },
+          clarifyFallbackMessage:
+            "Здравствуйте. Я Марк, AI-помощник Оксаны Ежевской. Расскажите задачу свободно.",
+          recommendationMode: "none",
+          lowEngagement: false,
+          expertPlan: null
+        };
+      }
+    });
+    assert("TEST AZ-E first-turn single call", calls === 1);
+    assert("TEST AZ-E clarify", reply.phase === "clarify");
+    assert("TEST AZ-E has Mark", /Марк/.test(reply.assistantMessage));
+  }
+
+  // F — weak/malformed gated recommend on READY: ≤1 call + fallback
+  {
+    let calls = 0;
+    const reply = await createSmartBriefReply({
+      apiKey: "t",
+      model: "m",
+      history: ctx.history,
+      message: ctx.message,
+      briefState: prior.briefState,
+      callOpenAI: async function () {
+        calls += 1;
+        return {
+          assistantMessage: "Сырой бриф без expertPlan.",
+          phase: "recommend",
+          done: true,
+          briefCoverage: emptyCoverage(),
+          nextInformationNeed: { focus: "none", reason: "" },
+          clarifyFallbackMessage: "",
+          recommendationMode: "normal",
+          lowEngagement: false,
+          expertPlan: validPlan({ reuseNote: "" })
+        };
+      }
+    });
+    assert("TEST AZ-F weak turn single call", calls === 1);
+    assert("TEST AZ-F not raw", reply.assistantMessage.indexOf("Сырой бриф") === -1);
+    assert("TEST AZ-F fallback", reply.assistantMessage === READY_REPAIR_FALLBACK);
+  }
+
+  // G — simulated 30s provider latency: still only one call; wall < client 55s budget
+  {
+    let calls = 0;
+    const t0 = Date.now();
+    const reply = await createSmartBriefReply({
+      apiKey: "t",
+      model: "m",
+      history: ctx.history,
+      message: ctx.message,
+      briefState: prior.briefState,
+      callOpenAI: async function () {
+        calls += 1;
+        await new Promise(function (r) {
+          setTimeout(r, 30000);
+        });
+        return {
+          assistantMessage: "",
+          phase: "clarify",
+          done: false,
+          briefCoverage: emptyCoverage(),
+          nextInformationNeed: { focus: "none", reason: "" },
+          clarifyFallbackMessage: "Продолжим?",
+          recommendationMode: "none",
+          lowEngagement: false,
+          expertPlan: null
+        };
+      }
+    });
+    const wall = Date.now() - t0;
+    assert("TEST AZ-G single provider call under latency", calls === 1);
+    assert("TEST AZ-G wall under client budget", wall < 55000);
+    assert("TEST AZ-G fallback", reply.assistantMessage === READY_REPAIR_FALLBACK);
+  }
+
+  // Static: createSmartBriefReply body has exactly one await callModel
+  {
+    const fs = await import("node:fs");
+    const src = fs.readFileSync(new URL("../src/openai.js", import.meta.url), "utf8");
+    const fnStart = src.indexOf("export async function createSmartBriefReply");
+    const fnEnd = src.indexOf("/** Test helpers", fnStart);
+    const body = src.slice(fnStart, fnEnd === -1 ? src.length : fnEnd);
+    const awaits = body.match(/await callModel\s*\(/g) || [];
+    assert("TEST AZ-static exactly one await callModel", awaits.length === 1);
+    assert(
+      "TEST AZ-static no runReadyRecommendRepair",
+      body.indexOf("runReadyRecommendRepair") === -1
+    );
+  }
 }
 
 // ========== BA — NO briefState: history recovery keeps audience ==========
