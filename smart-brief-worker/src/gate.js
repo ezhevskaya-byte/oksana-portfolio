@@ -162,8 +162,11 @@ export function isAudienceWhoEvidence(quote) {
   }
 
   const frequency = /(?:чаще(?:\s+всего)?|в основном|обычно|типичн)/.test(q);
+  // Bare «люди/человек» alone is NOT a meaningful segment.
   const segmentCore =
-    /(?:отдых|приезж|останавл|бронир|клиент|гост|пар|семь|люд|женщин|мужчин|покупател)/.test(q);
+    /(?:отдых|приезж|останавл|бронир|клиент|гост|пар|семь|женщин|мужчин|покупател|взросл|ученик|владельц|магазин|частник|бренд)/.test(
+      q
+    );
 
   const describesSegment = frequency && segmentCore;
   const verbThenSegment =
@@ -175,14 +178,27 @@ export function isAudienceWhoEvidence(quote) {
   const pairsFamilies =
     /(?:пары|семьи)(?:\s+\d|\s+с\s|\s+и\s|\s*$|,)/.test(q) &&
     /(?:отдых|приезж|останавл|у нас|к нам|чаще|обычно)/.test(q);
-  // Demographic + age band: «чаще женщины 30–60 лет»
+  // Demographic + age band: «чаще женщины 30–60 лет» / «взрослые 25–45 лет»
   const demoWithAge =
     frequency &&
-    /(?:женщин|мужчин|сем[ьия]|пар[ыа]|покупател|клиент|гост|люд)/.test(q) &&
+    /(?:женщин|мужчин|сем[ьия]|пар[ыа]|покупател|клиент|гост|взросл|ученик)/.test(q) &&
     /(?:\d{1,2}\s*[–\-—]\s*\d{1,2}|\d{1,2}\s*(?:лет|года))/.test(q);
+  // «Клиенты — …» / «Покупатели — …» as explicit segment lead
+  const labeledSegment =
+    /(?:клиенты|покупатели|гости|ученики)\s*[—\-–:]/.test(q) && segmentCore;
+  // «ко мне/к нам обращаются …» with a non-generic segment
+  const approachSegment =
+    /(?:ко\s+мне|к\s+нам)\s+обраща|обраща(?:ются|ется)/.test(q) &&
+    (segmentCore || /(?:взросл|владельц|компани|бренд)/.test(q));
 
   return (
-    describesSegment || verbThenSegment || namedClients || pairsFamilies || demoWithAge
+    describesSegment ||
+    verbThenSegment ||
+    namedClients ||
+    pairsFamilies ||
+    demoWithAge ||
+    labeledSegment ||
+    approachSegment
   );
 }
 
@@ -250,10 +266,26 @@ function combineSourceQuotes(sources) {
 export function detectJourneyStages(text) {
   const q = normalizeSpan(text);
   const stages = [];
-  if (/наход|приход|авито|объявлен|соцсет|инстаграм|реклам/.test(q)) stages.push("discover");
+  if (
+    /наход|приход|авито|объявлен|соцсет|инстаграм|реклам|видят\s+работ|узнают\s+(?:о\s+нас|через)/.test(
+      q
+    )
+  ) {
+    stages.push("discover");
+  }
   if (/смотр|фото|описан|сравнива|изуча/.test(q)) stages.push("inspect");
-  if (/пиш|звон|whatsapp|ватсап|мессенджер|связыв|контакт/.test(q)) stages.push("contact");
-  if (/уточня|количеств\w*\s+гост|спрашива/.test(q)) stages.push("qualify");
+  if (
+    /пиш|звон|whatsapp|ватсап|мессенджер|связыв|контакт|личн\w*\s+сообщ|телеграм/.test(q)
+  ) {
+    stages.push("contact");
+  }
+  if (
+    /уточня|количеств\w*\s+гост|спрашива|выясня\w*.{0,24}(?:цель|уровень)|цель\s+и\s+уровень/.test(
+      q
+    )
+  ) {
+    stages.push("qualify");
+  }
   if (
     /провер.{0,28}(?:свобод|номер|дат)/.test(q) ||
     /называ.{0,16}(?:стоим|цен)/.test(q) ||
@@ -261,7 +293,23 @@ export function detectJourneyStages(text) {
   ) {
     stages.push("availability");
   }
-  if (/предоплат|подтвержд|оформ.{0,16}брон|заброн|переводи/.test(q)) stages.push("book");
+  if (
+    /предоплат|подтвержд|оформ.{0,16}брон|заброн|переводи|оплачива|оплату|оплата|расписание\s+и\s+оплат/.test(
+      q
+    )
+  ) {
+    stages.push("book");
+  }
+  // Service / education process (tutoring, consulting, studios).
+  if (/пробн\w*\s+(?:занят|урок)|пробный\s+(?:урок|занят)/.test(q)) stages.push("trial");
+  if (/предлага\w*.{0,20}формат|обсужда\w*.{0,20}формат|формат\s+занят/.test(q)) {
+    stages.push("offer");
+  }
+  if (
+    /начина\w*\s+(?:занят|работ)|ведём\s+занят|провожу\s+занят|начинаем\s+занят/.test(q)
+  ) {
+    stages.push("deliver");
+  }
   return stages;
 }
 
@@ -282,7 +330,10 @@ export function isCustomerJourneySufficient(sources) {
   const hasDeepProcess =
     unique.indexOf("qualify") !== -1 ||
     unique.indexOf("availability") !== -1 ||
-    unique.indexOf("book") !== -1;
+    unique.indexOf("book") !== -1 ||
+    unique.indexOf("trial") !== -1 ||
+    unique.indexOf("offer") !== -1 ||
+    unique.indexOf("deliver") !== -1;
 
   const hasSurfaceProcess = unique.indexOf("inspect") !== -1;
 
@@ -355,26 +406,53 @@ export function isExistingToolsSufficient(sources) {
 
 /**
  * Sufficient desired flow: future client autonomy / process — not owner pain/goal alone.
+ * Tolerates natural Russian phrasing (хотелось бы / уже мог / оставить заявку / выбрать время).
  */
 export function isDesiredFlowSufficient(sources) {
   const text = combineSourceQuotes(sources);
   if (!text || text.length < GATE_POLICY.minQuoteChars) return false;
 
-  const autonomy =
-    /сам[аиу]?\s+(?:посмотр|увид|получ|оформ|заброн|выбр|узна)/.test(text) ||
-    /мог[лаи]?\s+(?:сам[аиу]?\s+)?(?:посмотр|оформ|заброн|увид|получ)/.test(text) ||
-    /чтобы\s+(?:гость|клиент|человек|он|они)\s+(?:сам|мог|посмотр|оформ|заброн)/.test(text) ||
-    /самостоятельн/.test(text);
+  const futureDesire =
+    /хочу,?\s+чтобы/.test(text) ||
+    /хотелось\s+бы(?:,?\s+чтобы)?/.test(text) ||
+    /хотелось\s+бы\s+дать\s+возможность/.test(text) ||
+    /в\s+идеале/.test(text) ||
+    /чтобы\s+(?:до\s+\w+\s+)*(?:гость|клиент|человек|ученик|он|они)/.test(text);
 
-  const futureShape = /хочу,?\s+чтобы|чтобы\s+(?:гость|клиент|человек)/.test(text);
+  const clientSelfServe =
+    /сам[аиу]?\s+(?:посмотр|увид|получ|оформ|заброн|выбр|узна|остав)/.test(text) ||
+    /мог[лаи]?(?:\s+\w+){0,4}\s+(?:посмотр|увид|получ|оформ|заброн|выбр|узна|поня|остав)/.test(
+      text
+    ) ||
+    /чтобы\s+(?:до\s+\w+\s+)*(?:гость|клиент|человек|ученик|он|они)(?:\s+\w+){0,5}\s+(?:сам|мог|посмотр|оформ|заброн|поня)/.test(
+      text
+    ) ||
+    /самостоятельн/.test(text) ||
+    /оставить\s+заявк|выбрать\s+время|оформить\s+(?:заявк|брон)|записаться\s+на/.test(text) ||
+    /заранее\s+понять|понять\s+(?:мой\s+)?формат|понять.{0,48}(?:стоим|цен|услов)/.test(text) ||
+    /получить\s+ответы\s+на\s+основные/.test(text) ||
+    /дать\s+возможность/.test(text);
+
+  const ownerReliefWithSelfServe =
+    clientSelfServe &&
+    /не\s+пришлось\s+бы|не\s+повторять|не\s+рассказыва|заново\s+рассказ|одно\s+и\s+то\s+же|подключаться\s+уже/.test(
+      text
+    );
 
   const painOrGoalOnly =
     /не\s+хочу|не\s+приходилось|одинаков|повторя|меньше\s+(?:тратить|зависеть)|нужен\s+сайт|больше\s+прямых/.test(
       text
-    ) && !autonomy;
+    ) && !clientSelfServe;
 
   if (painOrGoalOnly) return false;
-  if (autonomy && (futureShape || /брон|номер|дат|цен|свободн|ответ/.test(text))) return true;
+  if (
+    clientSelfServe &&
+    (futureDesire ||
+      ownerReliefWithSelfServe ||
+      /брон|номер|дат|цен|свободн|ответ|заявк|формат|занят|доставк|услов/.test(text))
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -1296,13 +1374,35 @@ export function isSafeWelcomeText(text, turn) {
 
 /**
  * Light contextual ack from user words only — no niche invention.
+ * If the first message is already substantive, do not ask to retell it.
  */
 export function buildFirstTurnWelcome(message) {
-  const msg = typeof message === "string" ? message : "";
+  const msg = typeof message === "string" ? message.trim() : "";
+  const substantive =
+    msg.length >= 90 &&
+    (/(гостев|магазин|студи|перевоз|репетитор|преподав|услуг|производ|упаков|бренд|клиник|салон|цветоч|букет|груз|интернет-?магазин)/i.test(
+      msg
+    ) ||
+      /(?:нужен|нужна|нужно)\s+(?:сайт|страниц)|хочу\s+(?:больше|сайт)|сейчас\s+(?:основн|заказ|бронир)|оставит[ьи]\s+заявк/i.test(
+        msg
+      ));
+
+  if (substantive) {
+    return (
+      "Здравствуйте. Я Марк, AI-помощник Оксаны Ежевской. Спасибо — я уже учёл то, что вы написали, " +
+      "и не буду просить рассказывать это заново. Это не анкета. " +
+      "Чтобы предложить полезное направление, уточню только недостающее: " +
+      "кто чаще всего к вам обращается и что этим людям обычно важно при выборе — если вы ещё не успели это описать."
+    );
+  }
+
   let topic = "о вашей задаче";
   if (/гостев/i.test(msg)) topic = "про гостевой дом и задачу";
   else if (/отел|гостиниц/i.test(msg)) topic = "про ваш объект и задачу";
   else if (/магазин|товар/i.test(msg)) topic = "про ваш магазин и задачу";
+  else if (/цветоч|букет/i.test(msg)) topic = "про цветочную студию и задачу";
+  else if (/преподав|репетитор|ученик/i.test(msg)) topic = "про преподавание и задачу";
+  else if (/перевоз|груз/i.test(msg)) topic = "про перевозки и задачу";
   else if (/услуг|сервис/i.test(msg)) topic = "про ваши услуги и задачу";
   else if (/бизнес/i.test(msg)) topic = "про ваш бизнес и задачу";
 

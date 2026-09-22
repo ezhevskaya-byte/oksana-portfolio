@@ -2959,6 +2959,157 @@ function livePlanReuse() {
   assert("TEST BG asks WHAT_MATTERS only", msg === MATTERS_ONLY);
 }
 
+// ========== BH — TEACHER DESIRED_FLOW NATURAL RU (NO-REPEAT root) ==========
+{
+  const FLOW_FOCUS =
+    "В идеале что клиент должен иметь возможность сделать сам, и что должно стать проще для вас?";
+  const teacherFlow =
+    "Наверное, полностью убирать личное общение я бы не хотела. Для выбора преподавателя оно всё-таки важно. " +
+    "Но хотелось бы, чтобы до переписки человек уже мог понять, кому и с какими задачами я помогаю, как проходят занятия, " +
+    "примерно сколько это стоит, получить ответы на основные вопросы и, если ему подходит мой формат, оставить заявку " +
+    "или выбрать время для пробного занятия. Тогда в личном общении мне уже не пришлось бы каждый раз заново рассказывать одно и то же.";
+
+  assert(
+    "TEST BH flow sufficient",
+    isDesiredFlowSufficient([src("u5", teacherFlow, "ideal_flow")]) === true
+  );
+
+  const hist = [
+    { role: "user", content: "Я преподаватель английского, нужен сайт." },
+    { role: "assistant", content: "welcome" },
+    { role: "user", content: "Хочу меньше повторять одно и то же в переписке." },
+    { role: "assistant", content: FLOW_FOCUS }
+  ];
+  const turns = buildUserTurns(hist, teacherFlow);
+  const merged = mergeBriefCoverage(
+    null,
+    Object.assign(emptyCoverage(), {
+      desiredFlow: field("known", [src("u3", teacherFlow, "ideal_flow")])
+    }),
+    turns
+  );
+  assert("TEST BH desiredFlow known after merge", merged.coverage.desiredFlow.status === "known");
+
+  const ready = evaluateBriefReady(merged.coverage, turns);
+  const target = resolveClarifyTarget(ready.missing, merged.coverage, turns);
+  assert("TEST BH no-repeat desiredFlow", target.focus !== "desiredFlow");
+
+  const msg = selectClarifyMessage(
+    {
+      nextInformationNeed: { focus: "desiredFlow", reason: "model insists" },
+      clarifyFallbackMessage: FLOW_FOCUS
+    },
+    ready.missing,
+    merged.coverage,
+    turns
+  );
+  assert("TEST BH server blocks FLOW_FOCUS re-ask", msg !== FLOW_FOCUS);
+}
+
+// ========== BI — TUTORING CUSTOMER_JOURNEY NATURAL ==========
+{
+  const JOURNEY_FOCUS =
+    "Как сейчас обычно проходит путь клиента: от первого знакомства до заявки или покупки?";
+  const tutoringJourney =
+    "Обычно человек пишет мне в WhatsApp или Instagram. Я выясняю цель и уровень, предлагаю формат занятий, " +
+    "обсуждаем расписание и оплату. Иногда предлагаю пробное занятие. Если всё подходит — договариваемся и начинаем работать.";
+
+  assert(
+    "TEST BI journey sufficient",
+    isCustomerJourneySufficient([src("u4", tutoringJourney, "path_steps")]) === true
+  );
+
+  const turns = buildUserTurns([], tutoringJourney);
+  const merged = mergeBriefCoverage(
+    null,
+    Object.assign(emptyCoverage(), {
+      customerJourney: field("known", [src("u1", tutoringJourney, "path_steps")])
+    }),
+    turns
+  );
+  assert("TEST BI journey known", merged.coverage.customerJourney.status === "known");
+  const ready = evaluateBriefReady(merged.coverage, turns);
+  const target = resolveClarifyTarget(ready.missing, merged.coverage, turns);
+  assert("TEST BI no-repeat journey", target.focus !== "customerJourney");
+  const msg = selectClarifyMessage(
+    {
+      nextInformationNeed: { focus: "customerJourney", reason: "model" },
+      clarifyFallbackMessage: JOURNEY_FOCUS
+    },
+    ready.missing,
+    merged.coverage,
+    turns
+  );
+  assert("TEST BI blocks JOURNEY_FOCUS", msg !== JOURNEY_FOCUS);
+}
+
+// ========== BJ — SUBSTANTIVE FIRST TURN ACK ==========
+{
+  const first =
+    "Здравствуйте. Я частный преподаватель английского для взрослых. Сейчас почти все ученики приходят через сарафан " +
+    "и личные сообщения, и мне приходится каждому заново рассказывать про формат и цены. Хочу сайт или простую страницу, " +
+    "чтобы человек заранее понимал мой подход и мог оставить заявку.";
+  const welcome = buildFirstTurnWelcome(first);
+  assert("TEST BJ ack concrete", /учёл|не буду просить/i.test(welcome));
+  assert("TEST BJ no retell", !/Расскажите своими словами/i.test(welcome));
+  assert("TEST BJ identity", /Марк/i.test(welcome) && /Оксан/i.test(welcome));
+  assert("TEST BJ not exact audience FOCUS", welcome !== AUDIENCE_FOCUS);
+
+  const short = "Нужен сайт";
+  const shortWelcome = buildFirstTurnWelcome(short);
+  assert("TEST BJ short still free discovery", /своими словами|не анкета/i.test(shortWelcome));
+}
+
+// ========== BK — NEGATIVE SEMANTIC (not overly permissive) ==========
+{
+  assert(
+    "TEST BK flow pain-only not known",
+    isDesiredFlowSufficient([
+      src("u1", "Мне приходится каждому гостю заново отвечать на одни и те же вопросы", "ideal_flow")
+    ]) === false
+  );
+  assert(
+    "TEST BK flow less-manual not known",
+    isDesiredFlowSufficient([
+      src("u1", "Хочу меньше ручной работы и меньше переписки", "ideal_flow")
+    ]) === false
+  );
+  assert(
+    "TEST BK flow want-site not known",
+    isDesiredFlowSufficient([src("u1", "Хочу сайт для своего бизнеса", "ideal_flow")]) === false
+  );
+
+  assert(
+    "TEST BK journey social-only not known",
+    isCustomerJourneySufficient([
+      src("u1", "Основные клиенты приходят из соцсетей", "path_steps")
+    ]) === false
+  );
+  assert(
+    "TEST BK journey whatsapp-only not known",
+    isCustomerJourneySufficient([src("u1", "Обычно пишут в WhatsApp", "path_steps")]) === false
+  );
+  assert(
+    "TEST BK journey tools-list not known",
+    isCustomerJourneySufficient([
+      src(
+        "u1",
+        "У нас есть WhatsApp, Instagram, телефон и таблицы заказов",
+        "path_steps"
+      )
+    ]) === false
+  );
+
+  assert(
+    "TEST BK who abstract people not WHO",
+    isAudienceWhoEvidence("Обычно к нам приходят люди") === false
+  );
+  assert(
+    "TEST BK product without buyer not WHO",
+    isAudienceWhoEvidence("У нас гостевой дом с бассейном и парковкой рядом с морем") === false
+  );
+}
+
 assert("schema has all critical keys", CRITICAL_COVERAGE_KEYS.length === 7);
 assert("schema is object", MODEL_TURN_SCHEMA.type === "object");
 assert("schema char length tracked", schemaCharLength() > 500);
