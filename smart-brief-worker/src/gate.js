@@ -950,6 +950,30 @@ export function candidateSpans(text) {
  * Recover field sources from USER_TURNS using the same semantic validators as gates.
  * Does not invent paraphrases — only exact contiguous spans from user text.
  */
+export function looksLikeBusinessEvidence(quote) {
+  const q = normalizeSpan(quote);
+  if (!q || q.length < Math.max(GATE_POLICY.minQuoteChars, 24)) return false;
+  return /(?:гостев|магазин|студи|перевоз|репетитор|преподав|услуг|производ|упаков|бренд|клиник|салон|цветоч|букет|груз|интернет-?магазин|занимаюсь|занимаемся|у меня\s+(?:небольш|цветоч|гостев|студи)|делаем\s+(?:небольш|букет|парти))/i.test(
+    q
+  );
+}
+
+export function looksLikeGoalEvidence(quote) {
+  const q = normalizeSpan(quote);
+  if (!q || q.length < Math.max(GATE_POLICY.minQuoteChars, 20)) return false;
+  return /(?:хочу|хочется|нужен\s+сайт|нужна\s+страниц|меньше\s+зависеть|снизить\s+переписк|чтобы\s+(?:человек|клиент|гость)|оставить\s+заявк)/i.test(
+    q
+  );
+}
+
+export function looksLikeFrictionEvidence(quote) {
+  const q = normalizeSpan(quote);
+  if (!q || q.length < Math.max(GATE_POLICY.minQuoteChars, 20)) return false;
+  return /(?:приходится|заново\s+рассказ|одни\s+и\s+те\s+же|вручную|повторя|переписк|одинаков)/i.test(
+    q
+  );
+}
+
 export function recoverSourcesFromTurns(fieldKey, userTurns) {
   const turns = userTurns || [];
   const out = [];
@@ -958,6 +982,51 @@ export function recoverSourcesFromTurns(fieldKey, userTurns) {
     const turn = turns[t];
     if (!turn || !turn.id || !isNonEmptyString(turn.text)) continue;
     const spans = candidateSpans(turn.text);
+
+    if (fieldKey === "business") {
+      for (let i = 0; i < spans.length; i += 1) {
+        if (looksLikeBusinessEvidence(spans[i])) {
+          out.push({
+            turnId: turn.id,
+            quote: spans[i],
+            aspect: "what_business",
+            operation: "support"
+          });
+          break;
+        }
+      }
+      continue;
+    }
+
+    if (fieldKey === "goal") {
+      for (let i = 0; i < spans.length; i += 1) {
+        if (looksLikeGoalEvidence(spans[i])) {
+          out.push({
+            turnId: turn.id,
+            quote: spans[i],
+            aspect: "desired_outcome",
+            operation: "support"
+          });
+          break;
+        }
+      }
+      continue;
+    }
+
+    if (fieldKey === "friction") {
+      for (let i = 0; i < spans.length; i += 1) {
+        if (looksLikeFrictionEvidence(spans[i])) {
+          out.push({
+            turnId: turn.id,
+            quote: spans[i],
+            aspect: "pain",
+            operation: "support"
+          });
+          break;
+        }
+      }
+      continue;
+    }
 
     if (fieldKey === "audienceInput") {
       for (let i = 0; i < spans.length; i += 1) {
@@ -1416,10 +1485,15 @@ export function buildFirstTurnWelcome(message) {
 }
 
 /**
- * First-turn client text: prefer model welcome when structurally safe; else server welcome.
+ * First-turn client text: for substantive first messages prefer server ack
+ * (model welcome often asks to retell). For short messages prefer safe model welcome.
  * Never publishes recommend prose; never uses MVB FOCUS_PROMPT.
  */
 export function selectFirstTurnMessage(turn, message) {
+  const serverWelcome = buildFirstTurnWelcome(message);
+  const substantiveAck = /учёл|не буду просить/i.test(serverWelcome);
+  if (substantiveAck) return serverWelcome;
+
   const fallback =
     turn && typeof turn.clarifyFallbackMessage === "string"
       ? turn.clarifyFallbackMessage.trim()
@@ -1430,7 +1504,7 @@ export function selectFirstTurnMessage(turn, message) {
     turn && typeof turn.assistantMessage === "string" ? turn.assistantMessage.trim() : "";
   if (isSafeWelcomeText(assistant, turn)) return assistant;
 
-  return buildFirstTurnWelcome(message);
+  return serverWelcome;
 }
 
 /**

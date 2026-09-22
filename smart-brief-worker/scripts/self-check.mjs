@@ -8,6 +8,13 @@ import { validateChatBody, trimHistoryForModel } from "../src/validate.js";
 import { checkRateLimit } from "../src/rateLimit.js";
 import { RUNTIME_INSTRUCTIONS } from "../src/prompt.js";
 import { TEXT_FORMAT, schemaCharLength } from "../src/schema.js";
+import {
+  DEFAULT_AI_PROVIDER,
+  DEFAULT_YANDEX_MODEL,
+  DEFAULT_YANDEX_STRUCTURED_OUTPUT,
+  YANDEX_BASE_URL,
+  resolveProviderConfig
+} from "../src/provider.js";
 
 let failed = 0;
 
@@ -32,6 +39,14 @@ function mockRequest(headers) {
 }
 
 assert("DEFAULT_MODEL is gpt-5.4-mini", DEFAULT_MODEL === "gpt-5.4-mini");
+assert("default AI provider is openai", DEFAULT_AI_PROVIDER === "openai");
+assert("Yandex default model id", DEFAULT_YANDEX_MODEL === "yandexgpt-5.1/latest");
+assert("Yandex default structured is prompt_json", DEFAULT_YANDEX_STRUCTURED_OUTPUT === "prompt_json");
+assert("Yandex base URL", /ai\.api\.cloud\.yandex\.net\/v1/.test(YANDEX_BASE_URL));
+assert(
+  "missing openai key → unavailable config",
+  resolveProviderConfig({}).ok === false
+);
 assert("message limit 4000", LIMITS.maxMessageChars === 4000);
 assert("allowed origins include production + local", ALLOWED_ORIGINS.length === 3);
 assert("runtime prompt is compact", RUNTIME_INSTRUCTIONS.length < 7500);
@@ -171,6 +186,39 @@ for (let i = 0; i < LIMITS.rateLimitMaxPerWindow + 2; i += 1) {
   if (!result.ok) hitLimit = true;
 }
 assert("best-effort rate limit trips in isolate", hitLimit === true);
+
+// --- wrangler.toml migration safety (no secrets in file) ---
+{
+  const fs = await import("node:fs");
+  const toml = fs.readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  assert("wrangler has env.production", /\[env\.production\]/.test(toml));
+  assert("wrangler has env.test", /\[env\.test\]/.test(toml));
+  assert("wrangler has env.production_openai rollback", /\[env\.production_openai\]/.test(toml));
+  assert(
+    "wrangler production name pinned to smart-brief-api",
+    /\[env\.production\]\s*\nname\s*=\s*"smart-brief-api"/.test(toml)
+  );
+  assert(
+    "wrangler production_openai name pinned",
+    /\[env\.production_openai\]\s*\nname\s*=\s*"smart-brief-api"/.test(toml)
+  );
+  assert(
+    "wrangler production AI_PROVIDER=yandex",
+    /\[env\.production\][\s\S]*?AI_PROVIDER\s*=\s*"yandex"/.test(toml)
+  );
+  assert(
+    "wrangler test AI_PROVIDER=yandex",
+    /\[env\.test\][\s\S]*?AI_PROVIDER\s*=\s*"yandex"/.test(toml)
+  );
+  assert(
+    "wrangler production_openai AI_PROVIDER=openai",
+    /\[env\.production_openai\][\s\S]*?AI_PROVIDER\s*=\s*"openai"/.test(toml)
+  );
+  assert("wrangler test Worker name", /name\s*=\s*"smart-brief-api-test"/.test(toml));
+  assert("wrangler no API key literals", !/AQVN|sk-[a-zA-Z0-9]{20,}|YANDEX_API_KEY\s*=\s*"[^"]+"/.test(toml));
+  assert("wrangler YANDEX_FOLDER_ID present as var", /YANDEX_FOLDER_ID\s*=\s*"b1gkei7lv9uhdqqdtpgc"/.test(toml));
+  assert("provider timeout 50s", LIMITS.openaiTimeoutMs === 50000);
+}
 
 if (failed) {
   console.error("\n" + failed + " check(s) failed");

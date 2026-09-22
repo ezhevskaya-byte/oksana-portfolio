@@ -2489,7 +2489,7 @@ function livePlanReuse() {
     });
     const wall = Date.now() - t0;
     assert("TEST AZ-G single provider call under latency", calls === 1);
-    assert("TEST AZ-G wall under client budget", wall < 55000);
+    assert("TEST AZ-G wall under client budget", wall < 58000);
     assert("TEST AZ-G fallback", reply.assistantMessage === READY_REPAIR_FALLBACK);
   }
 
@@ -3108,6 +3108,158 @@ function livePlanReuse() {
     "TEST BK product without buyer not WHO",
     isAudienceWhoEvidence("У нас гостевой дом с бассейном и парковкой рядом с морем") === false
   );
+}
+
+// ========== BL — provider timeout → resend: state + NO-REPEAT + ≤1 call ==========
+{
+  const AUDIENCE_FOCUS =
+    "Кто чаще всего к вам обращается, и что этим людям обычно важно при выборе?";
+  const JOURNEY_FOCUS =
+    "Как сейчас обычно проходит путь клиента: от первого знакомства до заявки или покупки?";
+
+  const hist = [
+    { role: "user", content: LIVE.u1 },
+    { role: "assistant", content: "Здравствуйте. Я Марк." },
+    { role: "user", content: LIVE.u2 },
+    { role: "assistant", content: AUDIENCE_FOCUS },
+    { role: "user", content: LIVE.u3 },
+    { role: "assistant", content: JOURNEY_FOCUS }
+  ];
+  const journeyMsg = LIVE.u4;
+
+  const priorTurns = buildUserTurns(
+    [
+      { role: "user", content: LIVE.u1 },
+      { role: "assistant", content: "Здравствуйте. Я Марк." },
+      { role: "user", content: LIVE.u2 },
+      { role: "assistant", content: AUDIENCE_FOCUS }
+    ],
+    LIVE.u3
+  );
+  const prior = mergeBriefCoverage(
+    null,
+    Object.assign(emptyCoverage(), {
+      business: field("known", [src("u1", "небольшой гостевой дом", "what_business")]),
+      goal: field("known", [src("u2", "Хочется меньше зависеть от Авито", "desired_outcome")]),
+      friction: field("known", [
+        src(
+          "u2",
+          "не приходилось каждому гостю заново отвечать на одни и те же вопросы",
+          "pain"
+        )
+      ]),
+      audienceInput: field("known", [
+        src("u3", LIVE_WHO, "who_or_segment"),
+        src("u3", LIVE_MATTERS, "what_matters")
+      ])
+    }),
+    priorTurns
+  );
+
+  // Client continuum after last successful reply (history + briefState).
+  let clientHistory = hist.slice();
+  let clientBriefState = prior.briefState;
+  const snapshotState = JSON.stringify(clientBriefState);
+  const snapshotHistLen = clientHistory.length;
+
+  let timeoutCalls = 0;
+  let timedOut = false;
+  try {
+    await createSmartBriefReply({
+      apiKey: "t",
+      model: "m",
+      history: clientHistory,
+      message: journeyMsg,
+      briefState: clientBriefState,
+      callOpenAI: async function () {
+        timeoutCalls += 1;
+        const err = new Error("provider_timeout");
+        err.code = "provider_timeout";
+        throw err;
+      }
+    });
+    assert("TEST BL timeout should throw", false);
+  } catch (err) {
+    timedOut = Boolean(err && err.code === "provider_timeout");
+  }
+  assert("TEST BL provider_timeout thrown", timedOut === true);
+  assert("TEST BL timeout exactly 1 provider call", timeoutCalls === 1);
+  // Frontend invariant: failed turn does not mutate history/briefState.
+  assert("TEST BL history unchanged after timeout", clientHistory.length === snapshotHistLen);
+  assert(
+    "TEST BL briefState unchanged after timeout",
+    JSON.stringify(clientBriefState) === snapshotState
+  );
+
+  // Resend same message with preserved continuum — hostile model re-asks audience.
+  let resendCalls = 0;
+  const reply = await createSmartBriefReply({
+    apiKey: "t",
+    model: "m",
+    history: clientHistory,
+    message: journeyMsg,
+    briefState: clientBriefState,
+    callOpenAI: async function () {
+      resendCalls += 1;
+      return {
+        assistantMessage: AUDIENCE_FOCUS,
+        phase: "clarify",
+        done: false,
+        briefCoverage: emptyCoverage(),
+        nextInformationNeed: { focus: "audienceInput", reason: "who+matters" },
+        clarifyFallbackMessage: AUDIENCE_FOCUS,
+        recommendationMode: "none",
+        lowEngagement: false,
+        expertPlan: null
+      };
+    }
+  });
+  assert("TEST BL resend exactly 1 provider call", resendCalls === 1);
+  assert("TEST BL no automatic second call", resendCalls + timeoutCalls === 2);
+  assert("TEST BL not AUDIENCE_FOCUS after resend", reply.assistantMessage !== AUDIENCE_FOCUS);
+  assert(
+    "TEST BL does not re-ask closed audience",
+    !/Кто чаще всего к вам обращается/i.test(reply.assistantMessage || "")
+  );
+  assert("TEST BL conversation continues", typeof reply.assistantMessage === "string" && reply.assistantMessage.length > 10);
+  assert("TEST BL briefState returned", reply.briefState != null);
+
+  // Correction semantics still work after recovery turn.
+  const histAfter = clientHistory.concat([
+    { role: "user", content: journeyMsg },
+    { role: "assistant", content: reply.assistantMessage }
+  ]);
+  const correction =
+    "Уточнение: это не гостевой дом — небольшой отель на 12 номеров у моря.";
+  let corrCalls = 0;
+  const corrReply = await createSmartBriefReply({
+    apiKey: "t",
+    model: "m",
+    history: histAfter,
+    message: correction,
+    briefState: reply.briefState,
+    callOpenAI: async function () {
+      corrCalls += 1;
+      return {
+        assistantMessage: "Понял, спасибо за уточнение. " + JOURNEY_FOCUS,
+        phase: "clarify",
+        done: false,
+        briefCoverage: Object.assign(emptyCoverage(), {
+          business: field("known", [
+            src("u5", "небольшой отель на 12 номеров у моря", "what_business", "replace")
+          ])
+        }),
+        nextInformationNeed: { focus: "customerJourney", reason: "path" },
+        clarifyFallbackMessage: JOURNEY_FOCUS,
+        recommendationMode: "none",
+        lowEngagement: false,
+        expertPlan: null
+      };
+    }
+  });
+  assert("TEST BL correction single call", corrCalls === 1);
+  assert("TEST BL correction keeps clarify/recommend", corrReply.phase === "clarify" || corrReply.phase === "recommend");
+  assert("TEST BL correction has text", corrReply.assistantMessage.length > 10);
 }
 
 assert("schema has all critical keys", CRITICAL_COVERAGE_KEYS.length === 7);

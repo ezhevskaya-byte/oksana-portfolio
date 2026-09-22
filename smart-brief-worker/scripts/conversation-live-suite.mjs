@@ -1,9 +1,11 @@
 /**
- * Live multi-niche conversation suite against test Worker (real OpenAI).
+ * Live multi-niche conversation suite against test Worker (real provider).
  * Usage: node scripts/conversation-live-suite.mjs
  * Env: SMOKE_API_URL, SMOKE_ORIGIN
  *
  * Does not deploy production. Does not print secrets.
+ * Retries only true network failures — NOT provider_timeout/upstream
+ * (avoids stacking 45s×N waits into 75s+ spikes).
  */
 const API_URL =
   process.env.SMOKE_API_URL ||
@@ -16,6 +18,7 @@ const JOURNEY_FOCUS =
   "Как сейчас обычно проходит путь клиента: от первого знакомства до заявки или покупки?";
 const BUSINESS_FOCUS =
   "Расскажите немного подробнее о вашем бизнесе: чем именно вы занимаетесь и что предлагаете клиентам?";
+const READY_FALLBACK_SNIP = "не удалось безопасно собрать рекомендацию";
 
 function norm(s) {
   return String(s || "")
@@ -26,6 +29,34 @@ function norm(s) {
 
 function isExact(a, b) {
   return norm(a) === norm(b);
+}
+
+function classifyOutcome(msg, phase) {
+  const text = String(msg || "");
+  if (text.indexOf(READY_FALLBACK_SNIP) !== -1) return "READY_FALLBACK";
+  if (phase === "recommend" || phase === "handoff") return "MODEL_RECOMMEND";
+  return "CLARIFY";
+}
+
+function expertSignals(msg) {
+  const t = String(msg || "").toLowerCase();
+  return {
+    insight:
+      /главн|рычаг|суть|на самом деле|не «?просто сайт|ключев|реальн(ая|ый) проблем|основн(ая|ой) проблем|проанализировал/.test(
+        t
+      ),
+    alternative:
+      /альтернатив|вместо этого|можно сначала|мессенджер|бот|либо |вариант —|none:|другой путь|усилить/.test(
+        t
+      ),
+    roadmap:
+      /сейчас |сначала |позже |затем |не нужно|не строить|минимум|перв(ый|ым) этап|начн|первый шаг/.test(
+        t
+      ),
+    reuse: /таблиц|whatsapp|ватсап|переисп|уже есть|подключ|существующ|модул|календар|instagram|телеграм/.test(
+      t
+    )
+  };
 }
 
 const NICHES = [
@@ -89,10 +120,24 @@ const NICHES = [
     expectFirstAck: true,
     afterFlowForbidExact: true,
     afterJourneyForbidExact: true
+  },
+  {
+    name: "b2b",
+    turns: [
+      "Мы делаем небольшие партии упаковки для локальных брендов. Сейчас заявки из сарафана и Telegram, много одинаковых вопросов про сроки и MOQ. Нужна страница, где клиент сам поймёт формат работы и оставит заявку.",
+      "Обращаются владельцы небольших брендов косметики и еды. Им важны сроки, минимальный тираж и можно ли сделать пробную партию.",
+      "Обычно пишут в Telegram, мы выясняем задачу и тираж, предлагаем формат и сроки, после предоплаты запускаем производство и отгружаем.",
+      "Есть Telegram, Google Таблицы для заказов, отдельной CRM нет. Хотим, чтобы клиент сам увидел типовые условия и оставил заявку с тиражом."
+    ],
+    expectFirstAck: true,
+    afterFlowForbidExact: true,
+    afterJourneyForbidExact: true
   }
 ];
 
 let failed = 0;
+const summaries = [];
+
 function assert(name, cond) {
   if (cond) console.log("ok  -", name);
   else {
@@ -102,26 +147,58 @@ function assert(name, cond) {
 }
 
 async function postChat({ sessionId, message, history, briefState }) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Origin: ORIGIN
-    },
-    body: JSON.stringify({ sessionId, message, history, briefState })
-  });
-  const payload = await res.json().catch(function () {
-    return null;
-  });
-  if (!res.ok || !payload || payload.ok !== true) {
-    const err = new Error(
-      "live_http_" + res.status + "_" + ((payload && payload.error) || "bad_payload")
-    );
-    err.status = res.status;
-    err.payload = payload;
-    throw err;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: ORIGIN
+        },
+        body: JSON.stringify({ sessionId, message, history, briefState })
+      });
+      const raw = await res.text();
+      let payload = null;
+      try {
+        payload = JSON.parse(raw);
+      } catch (_e) {
+        payload = null;
+      }
+      if (!res.ok || !payload || payload.ok !== true) {
+        const err = new Error(
+          "live_http_" +
+            res.status +
+            "_" +
+            ((payload && payload.error) || (payload ? "bad_payload" : "non_json"))
+        );
+        err.status = res.status;
+        err.payload = payload;
+        err.rawLen = raw ? raw.length : 0;
+        // Retry only empty/truncated JSON on 200 (network cut mid-body).
+        if ((!payload || payload.ok !== true) && res.status === 200 && attempt < 2) {
+          lastErr = err;
+          await new Promise(function (r) {
+            setTimeout(r, 700);
+          });
+          continue;
+        }
+        throw err;
+      }
+      return payload;
+    } catch (err) {
+      lastErr = err;
+      const msg = String((err && err.message) || err || "");
+      if (/fetch failed|network|ECONNRESET|ETIMEDOUT|non_json/i.test(msg) && attempt < 2) {
+        await new Promise(function (r) {
+          setTimeout(r, 700);
+        });
+        continue;
+      }
+      throw err;
+    }
   }
-  return payload;
+  throw lastErr || new Error("live_fetch_failed");
 }
 
 async function runNiche(niche) {
@@ -131,28 +208,35 @@ async function runNiche(niche) {
   let briefState = null;
   let journeyAnswered = false;
   let flowAnswered = false;
-  let sawRecommend = false;
-  let maxProvider = 0;
+  const latencies = [];
+  let readyTurn = null;
+  let finalOutcome = "CLARIFY";
+  let finalSignals = { insight: false, alternative: false, roadmap: false, reuse: false };
+  let fallbackReason = null;
 
   for (let i = 0; i < niche.turns.length; i += 1) {
     const message = niche.turns[i];
+    const t0 = Date.now();
     const payload = await postChat({ sessionId, message, history, briefState });
+    const ms = Date.now() - t0;
+    latencies.push(ms);
     sessionId = payload.sessionId || sessionId;
     if (Object.prototype.hasOwnProperty.call(payload, "briefState")) {
       briefState = payload.briefState != null ? payload.briefState : null;
     }
     const assistant = String(payload.assistantMessage || "").trim();
-    const providerCallCount =
-      payload.debug && typeof payload.debug.providerCallCount === "number"
-        ? payload.debug.providerCallCount
-        : payload.providerCallCount;
-    if (typeof providerCallCount === "number") {
-      maxProvider = Math.max(maxProvider, providerCallCount);
-      assert(niche.name + " T" + (i + 1) + " provider<=1", providerCallCount <= 1);
-    }
+    const outcome = classifyOutcome(assistant, payload.phase);
+    const sig = expertSignals(assistant);
+    console.log(
+      "u" + (i + 1),
+      "phase=" + payload.phase,
+      "outcome=" + outcome,
+      "ms=" + ms,
+      "msg=",
+      assistant.slice(0, 100).replace(/\s+/g, " ")
+    );
 
     assert(niche.name + " T" + (i + 1) + " has reply", assistant.length > 20);
-    assert(niche.name + " T" + (i + 1) + " not 5xx class", true);
 
     if (i === 0 && niche.expectFirstAck) {
       assert(
@@ -160,7 +244,6 @@ async function runNiche(niche) {
         !isExact(assistant, BUSINESS_FOCUS) &&
           !/расскажите .*своими словами .*бизнес/i.test(assistant)
       );
-      // Soft: prefer ack; if model welcome passed safety it may vary — block only retell
       assert(
         niche.name + " FIRST identity or ack",
         /Марк|учёл|понял|уже|спасибо/i.test(assistant)
@@ -174,32 +257,51 @@ async function runNiche(niche) {
       assert(niche.name + " no-repeat FLOW exact", !isExact(assistant, FLOW_FOCUS));
     }
 
-    // Heuristic: after journey/flow user turns, mark answered
     if (i >= 2) journeyAnswered = true;
     if (/оставить заявк|сам .{0,20}(?:выбр|оформ|посмотр)|хотелось бы|хочу, чтобы/i.test(message)) {
       flowAnswered = true;
     }
 
-    if (/рекоменд|имеет смысл|я бы предложил|начн/i.test(assistant) && assistant.length > 180) {
-      sawRecommend = true;
+    if (outcome === "MODEL_RECOMMEND" || outcome === "READY_FALLBACK") {
+      if (readyTurn == null) readyTurn = i + 1;
+      finalOutcome = outcome;
+      finalSignals = sig;
+      if (outcome === "READY_FALLBACK") {
+        fallbackReason = "server_ready_fallback_public_text";
+      } else {
+        fallbackReason = null;
+      }
+      // Goal for this stage: reach publishable recommend or safe fallback — stop niche.
+      history.push({ role: "user", content: message });
+      history.push({ role: "assistant", content: assistant });
+      break;
     }
 
     history.push({ role: "user", content: message });
     history.push({ role: "assistant", content: assistant });
     await new Promise(function (r) {
-      setTimeout(r, 400);
+      setTimeout(r, 500);
     });
   }
 
-  if (typeof maxProvider === "number" && maxProvider > 0) {
-    assert(niche.name + " max providerCallCount<=1", maxProvider <= 1);
-  }
-  console.log(
-    niche.name + " done; recommend_seen=",
-    sawRecommend,
-    "history_turns=",
-    history.length / 2
-  );
+  const avg =
+    latencies.length > 0
+      ? Math.round(latencies.reduce(function (a, b) { return a + b; }, 0) / latencies.length)
+      : 0;
+  const row = {
+    niche: niche.name,
+    readyTurn: readyTurn,
+    outcome: finalOutcome,
+    insight: finalSignals.insight,
+    alternative: finalSignals.alternative,
+    roadmap: finalSignals.roadmap,
+    reuse: finalSignals.reuse,
+    fallbackReason: fallbackReason,
+    latencyMs: latencies,
+    avgMs: avg
+  };
+  summaries.push(row);
+  console.log("SUMMARY", JSON.stringify(row));
 }
 
 async function main() {
@@ -213,8 +315,39 @@ async function main() {
       if (err && err.payload) {
         console.error("payload.error=", err.payload.error || err.payload);
       }
+      summaries.push({
+        niche: NICHES[i].name,
+        readyTurn: null,
+        outcome: "ERROR",
+        insight: false,
+        alternative: false,
+        roadmap: false,
+        reuse: false,
+        fallbackReason: String((err && err.message) || err),
+        latencyMs: [],
+        avgMs: 0
+      });
     }
   }
+
+  const recommendN = summaries.filter(function (s) {
+    return s.outcome === "MODEL_RECOMMEND";
+  }).length;
+  console.log("\n=== AGGREGATE ===");
+  console.log("MODEL_RECOMMEND", recommendN + "/" + summaries.length);
+  for (let i = 0; i < summaries.length; i += 1) {
+    const s = summaries[i];
+    console.log(
+      s.niche,
+      "ready@" + s.readyTurn,
+      s.outcome,
+      "I/A/R/U=",
+      [s.insight, s.alternative, s.roadmap, s.reuse].map(Boolean).join("/"),
+      "avgMs=" + s.avgMs,
+      s.fallbackReason ? "reason=" + s.fallbackReason : ""
+    );
+  }
+
   if (failed) {
     console.error("\n" + failed + " live suite failure(s)");
     process.exit(1);

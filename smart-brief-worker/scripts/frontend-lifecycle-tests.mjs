@@ -204,10 +204,27 @@ assert(
 );
 assert("JS loading lock present", /if\s*\(\s*loading\s*\)\s*return/.test(js));
 assert("JS error rollback removes optimistic bubbles", /userEl\.parentNode\.removeChild/.test(js));
-assert("JS maps client_timeout distinctly", /client_timeout/.test(js) && /Превышено время ожидания/.test(js));
+assert(
+  "JS maps client_timeout calmly",
+  /client_timeout/.test(js) && /Ответ занял больше времени, чем обычно/.test(js)
+);
 assert("JS maps rate_limited distinctly", /rate_limited/.test(js) && /Слишком много запросов/.test(js));
-assert("JS maps provider_timeout distinctly", /provider_timeout/.test(js) && /слишком долго/.test(js));
-assert("JS no API secrets", !/sk-|OPENAI_API_KEY|Bearer\s/.test(js));
+assert(
+  "JS maps provider_timeout calmly",
+  /provider_timeout/.test(js) && /продолжим с уже сказанного/.test(js)
+);
+assert(
+  "JS timeout copy does not claim brief saved",
+  !/бриф сохранён|бриф сохранен/i.test(js)
+);
+assert(
+  "JS no automatic retry loop on timeout",
+  !/setInterval\s*\(/.test(js) &&
+    !/\.then\(\s*function\s*\([^)]*\)\s*\{\s*return\s+requestChat/.test(js) &&
+    !/for\s*\(\s*;\s*;\s*\)/.test(js)
+);
+assert("JS clientTimeoutMs is 58000", /clientTimeoutMs:\s*58000/.test(js));
+assert("JS no API secrets", !/sk-|OPENAI_API_KEY|YANDEX_API_KEY|Bearer\s/.test(js));
 assert("JS no hard-coded test Worker URL", !/smart-brief-api-test/.test(js));
 
 assert(
@@ -219,7 +236,7 @@ assert(
   /host === "127\.0\.0\.1" \|\| host === "localhost"/.test(html) &&
     /smart-brief-api-test\.ezhevskaya\.workers\.dev\/api\/chat/.test(html)
 );
-assert("HTML no secrets", !/sk-|OPENAI_API_KEY/.test(html));
+assert("HTML no secrets", !/sk-|OPENAI_API_KEY|YANDEX_API_KEY/.test(html));
 
 console.log("\n=== A–I briefState lifecycle ===");
 {
@@ -360,6 +377,97 @@ console.log("\n=== A–I briefState lifecycle ===");
     "I JSON storage round-trip",
     JSON.stringify(m7.briefState) === JSON.stringify(round)
   );
+}
+
+console.log("\n=== J–N timeout / resend / double-send contracts ===");
+{
+  const storage = makeStorage();
+  const m = createSessionModel(storage);
+
+  // Seed several successful turns with partial MVB
+  m.applyPayload({
+    sessionId: "to-1",
+    assistantMessage: "Здравствуйте. Я Марк.",
+    phase: "clarify",
+    briefState: { v: 1, fields: { business: { sources: [{ turnId: "u1", quote: "гостевой дом", aspect: "what_business" }] } } },
+    _userMessage: "У меня небольшой гостевой дом, нужен сайт."
+  });
+  m.applyPayload({
+    sessionId: "to-1",
+    assistantMessage: "Кто чаще всего к вам обращается, и что этим людям обычно важно при выборе?",
+    phase: "clarify",
+    briefState: {
+      v: 1,
+      fields: {
+        business: { sources: [{ turnId: "u1", quote: "гостевой дом", aspect: "what_business" }] },
+        goal: { sources: [{ turnId: "u2", quote: "меньше зависеть от Авито", aspect: "desired_outcome" }] }
+      }
+    },
+    _userMessage:
+      "Сейчас бронирования через Авито. Хочется меньше зависеть от Авито и снизить переписку."
+  });
+
+  const beforeState = JSON.parse(JSON.stringify(m.briefState));
+  const beforeHistoryLen = m.history.length;
+  const pending = "Чаще всего пары 30–50 и семьи с детьми. Важны тишина, море и понятная цена.";
+
+  // Simulate failed request: client does NOT applyPayload (timeout / abort)
+  const failBody = m.requestBody(pending);
+  assert("J timeout request still sends prior briefState", failBody.briefState != null);
+  assert(
+    "J timeout request briefState unchanged vs last success",
+    JSON.stringify(failBody.briefState) === JSON.stringify(beforeState)
+  );
+  assert("J history not polluted before success", m.history.length === beforeHistoryLen);
+
+  // After failure: same session model — resend identical continuum
+  const resendBody = m.requestBody(pending);
+  assert(
+    "K resend briefState exact prior",
+    JSON.stringify(resendBody.briefState) === JSON.stringify(beforeState)
+  );
+  assert("K resend same sessionId", resendBody.sessionId === failBody.sessionId);
+  assert("K resend history length unchanged", resendBody.history.length === beforeHistoryLen);
+  assert("K resend message identical", resendBody.message === pending);
+
+  // Successful recovery after timeout
+  m.applyPayload({
+    sessionId: "to-1",
+    assistantMessage: "Как сейчас обычно проходит путь клиента: от первого знакомния до брони?",
+    phase: "clarify",
+    briefState: {
+      v: 1,
+      fields: {
+        business: { sources: [{ turnId: "u1", quote: "гостевой дом", aspect: "what_business" }] },
+        goal: { sources: [{ turnId: "u2", quote: "меньше зависеть от Авито", aspect: "desired_outcome" }] },
+        audienceInput: {
+          sources: [
+            { turnId: "u3", quote: "пары 30–50 и семьи с детьми", aspect: "who_or_segment" },
+            { turnId: "u3", quote: "тишина, море и понятная цена", aspect: "what_matters" }
+          ]
+        }
+      }
+    },
+    _userMessage: pending
+  });
+  assert("L recovery advances history by 2", m.history.length === beforeHistoryLen + 2);
+  assert("L recovery keeps prior business quote", m.briefState.fields.business.sources.length >= 1);
+
+  // Double-send lock is a source contract (loading gate); model cannot fire twice while busy
+  assert("M double-send lock in source", /if\s*\(\s*loading\s*\)\s*return/.test(js));
+  assert("M setBusy before requestChat", /setBusy\(true\)[\s\S]*requestChat\(message\)/.test(js));
+}
+
+{
+  // Align frontend client timeout above Worker provider timeout
+  const cfgPath = path.join(ROOT, "smart-brief-worker", "src", "config.js");
+  const cfg = fs.readFileSync(cfgPath, "utf8");
+  const clientMs = Number((js.match(/clientTimeoutMs:\s*(\d+)/) || [])[1]);
+  const providerMs = Number((cfg.match(/openaiTimeoutMs:\s*(\d+)/) || [])[1]);
+  assert("N clientTimeoutMs parsed", clientMs === 58000);
+  assert("N providerTimeoutMs parsed", providerMs === 50000);
+  assert("N client timeout > provider timeout", clientMs > providerMs);
+  assert("N timeout gap at least 5s", clientMs - providerMs >= 5000);
 }
 
 console.log("\n=== layout / responsive contracts ===");

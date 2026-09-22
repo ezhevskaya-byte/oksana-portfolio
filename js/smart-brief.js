@@ -6,7 +6,10 @@
   var LIMITS = {
     maxMessageChars: 4000,
     maxHistoryItems: 24,
-    clientTimeoutMs: 55000
+    // Slightly above Worker provider timeout (50s) so mapped provider_timeout
+    // wins over a blind AbortError when upstream is slow. Rare longer spikes
+    // fail fast with a clear message — user may send again; no chained provider calls.
+    clientTimeoutMs: 58000
   };
 
   var config = window.SMART_BRIEF_CONFIG || {};
@@ -217,14 +220,12 @@
   }
 
   function errorMessageForCode(code) {
-    if (code === "client_timeout") {
-      return "Превышено время ожидания ответа. Попробуйте ещё раз.";
+    if (code === "client_timeout" || code === "provider_timeout") {
+      // Continuity comes from last successful history/briefState only.
+      return "Ответ занял больше времени, чем обычно. Можно отправить сообщение ещё раз — продолжим с уже сказанного.";
     }
     if (code === "rate_limited") {
       return "Слишком много запросов подряд. Подождите немного и попробуйте снова.";
-    }
-    if (code === "provider_timeout") {
-      return "Сервис ответа сейчас отвечает слишком долго. Попробуйте ещё раз.";
     }
     if (code === "provider_upstream") {
       return "Временный сбой внешнего сервиса ответа. Попробуйте ещё раз.";

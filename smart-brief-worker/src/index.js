@@ -1,8 +1,8 @@
-import { DEFAULT_MODEL } from "./config.js";
 import { resolveAllowedOrigin, jsonResponse, optionsResponse } from "./cors.js";
 import { validateChatBody, trimHistoryForModel } from "./validate.js";
 import { checkRateLimit } from "./rateLimit.js";
 import { createSmartBriefReply } from "./openai.js";
+import { resolveProviderConfig } from "./provider.js";
 
 function createSessionId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -40,25 +40,26 @@ async function handleChat(request, env, origin) {
     return errorResponse("validation_error", 400, origin);
   }
 
-  const apiKey = env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const providerConfig = resolveProviderConfig(env);
+  if (!providerConfig.ok) {
     return errorResponse("unavailable", 503, origin);
   }
 
-  const model = (env.OPENAI_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
   const sessionId = validated.data.sessionId || createSessionId();
   const history = trimHistoryForModel(validated.data.history);
 
   try {
     const reply = await createSmartBriefReply({
-      apiKey,
-      model,
+      providerConfig: providerConfig,
+      // Legacy fields kept for inject-compatible paths / debugging — not used when providerConfig set.
+      apiKey: providerConfig.apiKey,
+      model: providerConfig.model,
       history,
       message: validated.data.message,
       briefState: validated.data.briefState
     });
 
-    // Public contract — never leak coverage/plan/gates; briefState is opaque continuum token.
+    // Public contract — never leak coverage/plan/gates/provider secrets; briefState is opaque.
     return jsonResponse(
       {
         ok: true,

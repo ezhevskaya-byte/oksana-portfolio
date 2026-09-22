@@ -1,6 +1,5 @@
 import { DEFAULT_MODEL, LIMITS } from "./config.js";
 import { RUNTIME_INSTRUCTIONS } from "./prompt.js";
-import { TEXT_FORMAT } from "./schema.js";
 import {
   enforceGates,
   pickMissingFocus,
@@ -13,6 +12,13 @@ import {
   selectFirstTurnMessage,
   READY_REPAIR_FALLBACK
 } from "./gate.js";
+import {
+  callProviderForTurn,
+  extractOutputText as providerExtractOutputText,
+  buildResponsesBody,
+  buildResponsesHeaders,
+  resolveProviderConfig
+} from "./provider.js";
 
 function emptyCoverageSkeleton() {
   return {
@@ -33,26 +39,7 @@ function throwCoded(message, code) {
 }
 
 function extractOutputText(payload) {
-  if (!payload || typeof payload !== "object") return "";
-  if (typeof payload.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const output = Array.isArray(payload.output) ? payload.output : [];
-  const chunks = [];
-
-  for (let i = 0; i < output.length; i += 1) {
-    const item = output[i];
-    if (!item || item.type !== "message" || !Array.isArray(item.content)) continue;
-    for (let j = 0; j < item.content.length; j += 1) {
-      const part = item.content[j];
-      if (part && typeof part.text === "string") {
-        chunks.push(part.text);
-      }
-    }
-  }
-
-  return chunks.join("\n").trim();
+  return providerExtractOutputText(payload);
 }
 
 function parseJsonObject(text) {
@@ -163,104 +150,32 @@ function buildInstructions(base, userTurns, firstTurn) {
   return text;
 }
 
+const turnParsers = {
+  extractOutputText: extractOutputText,
+  parseJsonObject: parseJsonObject,
+  normalizeModelTurn: normalizeModelTurn
+};
+
+/**
+ * Legacy OpenAI-only call (kept for inject tests + OpenAI default path).
+ */
 async function callOpenAI({ apiKey, model, input, instructions }) {
-  const controller = new AbortController();
-  const timer = setTimeout(function () {
-    controller.abort();
-  }, LIMITS.openaiTimeoutMs);
-
-  let response;
-  try {
-    try {
-      response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          Authorization: "Bearer " + apiKey,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: model || DEFAULT_MODEL,
-          instructions: instructions || RUNTIME_INSTRUCTIONS,
-          input,
-          store: false,
-          max_output_tokens: LIMITS.maxOutputTokens,
-          text: { format: TEXT_FORMAT }
-        })
-      });
-    } catch (fetchErr) {
-      const aborted =
-        Boolean(fetchErr) &&
-        (fetchErr.name === "AbortError" ||
-          fetchErr.code === 20 ||
-          /aborted/i.test(String(fetchErr.message || "")));
-      console.error("[smart-brief] openai_fetch_failed", {
-        aborted: aborted,
-        name: fetchErr && fetchErr.name
-      });
-      throwCoded(
-        aborted ? "provider_timeout" : "provider_fetch_failed",
-        aborted ? "provider_timeout" : "unavailable"
-      );
-    }
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (!response.ok) {
-    let upstreamType = null;
-    let upstreamCode = null;
-    let upstreamParam = null;
-    let upstreamMessage = null;
-    try {
-      const errorPayload = await response.json();
-      const upstreamError =
-        errorPayload && typeof errorPayload === "object" ? errorPayload.error : null;
-      if (upstreamError && typeof upstreamError === "object") {
-        if (typeof upstreamError.type === "string") upstreamType = upstreamError.type;
-        if (typeof upstreamError.code === "string") upstreamCode = upstreamError.code;
-        if (typeof upstreamError.param === "string") upstreamParam = upstreamError.param;
-        if (typeof upstreamError.message === "string") {
-          upstreamMessage = upstreamError.message.slice(0, 200);
-        }
-      }
-    } catch (_parseErr) {
-      // Ignore non-JSON error bodies; still log status below.
-    }
-    console.error("[smart-brief] openai_upstream_error", {
-      status: response.status,
-      type: upstreamType,
-      code: upstreamCode,
-      param: upstreamParam,
-      message: upstreamMessage
-    });
-    throwCoded("openai_http_" + response.status, "provider_upstream");
-  }
-
-  const payload = await response.json();
-  if (payload && payload.status === "incomplete") {
-    const reason =
-      payload.incomplete_details && typeof payload.incomplete_details.reason === "string"
-        ? payload.incomplete_details.reason
-        : "unknown";
-    console.error("[smart-brief] openai_incomplete", { reason: reason });
-  }
-
-  const rawText = extractOutputText(payload);
-  const parsed = parseJsonObject(rawText);
-  const turn = normalizeModelTurn(parsed);
-  const hasClientText =
-    turn &&
-    (turn.assistantMessage || turn.clarifyFallbackMessage);
-  if (!hasClientText) {
-    throwCoded("empty_or_invalid_model_output", "empty_or_invalid_model_output");
-  }
-  return turn;
+  const config = {
+    ok: true,
+    name: "openai",
+    apiKey: apiKey,
+    model: model || DEFAULT_MODEL,
+    baseUrl: "https://api.openai.com/v1",
+    temperature: null,
+    timeoutMs: LIMITS.openaiTimeoutMs,
+    structuredOutput: "json_schema"
+  };
+  return callProviderForTurn(config, { instructions, input }, turnParsers);
 }
 
 /**
  * Soft degrade after the sole provider call produced unusable output.
- * Preserves briefState continuum; never invents recommend/expertPlan; no 2nd OpenAI call.
+ * Preserves briefState continuum; never invents recommend/expertPlan; no 2nd provider call.
  */
 function softDegradeFromPrior(priorBriefState, userTurns) {
   const merged = mergeBriefCoverage(priorBriefState, emptyCoverageSkeleton(), userTurns);
@@ -372,11 +287,7 @@ function isCoverageReady(decision) {
 }
 
 /**
- * INVARIANT: at most ONE OpenAI provider call per POST /api/chat.
- * When coverage is READY but the first model turn is not publishable
- * (clarify / Gate2 fail), never call the provider again — return a
- * deterministic server fallback that does not invent architecture,
- * does not re-ask closed MVB fields, and never publishes ungated text.
+ * INVARIANT: at most ONE provider model call per POST /api/chat.
  */
 function readyUnpublishableFallback(briefState) {
   return toReadyFallbackPublic(briefState);
@@ -384,20 +295,35 @@ function readyUnpublishableFallback(briefState) {
 
 /**
  * Main chat generation with B′ grounding, D′ briefState merge, server-owned routing.
- * Optional callOpenAI inject for deterministic tests.
+ * Optional callOpenAI inject for deterministic tests (legacy name preserved).
  *
  * Provider call budget: exactly one `await callModel(...)` in this function.
- * No repair / second-round provider paths remain.
+ *
+ * Accepts either legacy { apiKey, model } or { providerConfig } from resolveProviderConfig.
  */
 export async function createSmartBriefReply({
   apiKey,
   model,
+  providerConfig,
   history,
   message,
   briefState: priorBriefState,
   callOpenAI: callOpenAIInject
 }) {
-  const callModel = callOpenAIInject || callOpenAI;
+  const callModel =
+    callOpenAIInject ||
+    async function (args) {
+      if (providerConfig && providerConfig.ok) {
+        return callProviderForTurn(providerConfig, args, turnParsers);
+      }
+      return callOpenAI({
+        apiKey: apiKey,
+        model: model,
+        input: args.input,
+        instructions: args.instructions
+      });
+    };
+
   const userTurns = buildUserTurns(history, message);
   const firstTurn = isFirstUserTurn(history);
   const input = history.concat([{ role: "user", content: message }]).map(function (item) {
@@ -410,8 +336,6 @@ export async function createSmartBriefReply({
   try {
     turn = await callModel({ apiKey, model, input, instructions });
   } catch (err) {
-    // Empty/truncated/incomplete model JSON: degrade to server text (HTTP 200 path).
-    // Do NOT spend a second provider call. Re-throw timeout/upstream for distinct 503 codes.
     if (err && err.code === "empty_or_invalid_model_output") {
       return softDegradeFromPrior(priorBriefState, userTurns);
     }
@@ -422,8 +346,6 @@ export async function createSmartBriefReply({
   turn.briefCoverage = merged.coverage;
   const briefState = merged.briefState;
 
-  // Welcome / free-discovery: first user turn must not become MVB FOCUS_PROMPT.
-  // Gate/merge still run; recommendation never publishes here.
   if (isFirstUserTurn(history)) {
     return {
       assistantMessage: clipAssistant(selectFirstTurnMessage(turn, message)),
@@ -433,19 +355,22 @@ export async function createSmartBriefReply({
     };
   }
 
-  let decision = enforceGates(turn, { history, message });
+  const decision = enforceGates(turn, { history, message });
 
-  // Successful recommendation path (Gate1 + Gate2 already passed inside enforceGates).
   if (isRecommendDecision(decision)) {
     return toRecommendPublic(decision.publicTurn, briefState);
   }
 
-  // Gate1 READY but model still on clarify / none → server fallback (no 2nd provider call).
   if (decision.action === "allow" && isCoverageReady(decision)) {
+    console.error("[smart-brief] ready_fallback", {
+      reason: "model_not_publishable_recommend",
+      phase: turn.phase,
+      recommendationMode: turn.recommendationMode,
+      hasPlan: Boolean(turn.expertPlan)
+    });
     return readyUnpublishableFallback(briefState);
   }
 
-  // Clarify with real missing fields.
   if (decision.action === "allow") {
     return toClarifyPublic(
       turn,
@@ -456,13 +381,14 @@ export async function createSmartBriefReply({
     );
   }
 
-  // Expert Gate failed while coverage READY → server fallback (never publish raw text).
   if (decision.reason === "gate2_fail" && isCoverageReady(decision)) {
+    console.error("[smart-brief] ready_fallback", {
+      reason: "gate2_fail",
+      issues: decision.gate2Issues || []
+    });
     return readyUnpublishableFallback(briefState);
   }
 
-  // Gate1 fail (or other block): server synthesize clarify from `missing`.
-  // No second OpenAI round-trip — openaiTimeoutMs × 2 exceeds clientTimeoutMs.
   return toClarifyPublic(
     turn,
     decision.missing || (decision.coverageEval && decision.coverageEval.missing),
@@ -487,5 +413,8 @@ export const __test__ = {
   readyUnpublishableFallback,
   softDegradeFromPrior,
   buildInstructions,
-  createSmartBriefReply
+  createSmartBriefReply,
+  buildResponsesBody,
+  buildResponsesHeaders,
+  resolveProviderConfig
 };

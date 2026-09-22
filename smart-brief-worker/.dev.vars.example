@@ -1,6 +1,17 @@
-# OpenAI API key — set only via Cloudflare secrets / local .dev.vars
-# Never commit the real key.
-OPENAI_API_KEY=
+# Local Cloudflare Worker vars — copy to .dev.vars (never commit real keys).
+# .dev.vars is gitignored.
 
-# Optional override (defaults to gpt-5.4-mini in wrangler.toml / code)
+# Provider: openai | yandex
+# AI_PROVIDER=yandex
+
+# --- OpenAI (kept for local rollback / dual-provider) ---
+OPENAI_API_KEY=
 # OPENAI_MODEL=gpt-5.4-mini
+
+# --- Yandex AI Studio ---
+# Secret stays in Cloudflare / local .dev.vars only — never commit:
+# YANDEX_API_KEY=
+# Folder id is configuration, not the API key:
+# YANDEX_FOLDER_ID=b1gkei7lv9uhdqqdtpgc
+# YANDEX_MODEL=yandexgpt-5.1/latest
+# YANDEX_STRUCTURED_OUTPUT=prompt_json

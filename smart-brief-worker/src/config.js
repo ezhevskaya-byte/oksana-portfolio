@@ -17,8 +17,12 @@ export const LIMITS = {
   maxSourcesPerField: 8,
   /** OpenAI max_output_tokens (room for coverage sources + expertPlan without truncation). */
   maxOutputTokens: 2200,
-  /** Fetch timeout for OpenAI (ms). */
-  openaiTimeoutMs: 45000,
+  /**
+   * Provider fetch timeout (ms). Kept under frontend clientTimeoutMs (~58s) so a slow
+   * upstream returns provider_timeout JSON before the browser AbortController fires.
+   * Rare ~75s Yandex spikes are intentionally cut — user retries; no automatic retry.
+   */
+  openaiTimeoutMs: 50000,
   /** Best-effort in-memory rate limit window (ms). */
   rateLimitWindowMs: 60_000,
   /** Best-effort max requests per IP per window (single isolate only). */
