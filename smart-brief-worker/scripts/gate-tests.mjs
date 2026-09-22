@@ -2507,6 +2507,51 @@ function livePlanReuse() {
       body.indexOf("runReadyRecommendRepair") === -1
     );
   }
+
+  // H — empty/truncated model output soft-degrades (no throw, still 1 call)
+  {
+    let calls = 0;
+    const reply = await createSmartBriefReply({
+      apiKey: "t",
+      model: "m",
+      history: ctx.history,
+      message: ctx.message,
+      briefState: prior.briefState,
+      callOpenAI: async function () {
+        calls += 1;
+        const err = new Error("empty_or_invalid_model_output");
+        err.code = "empty_or_invalid_model_output";
+        throw err;
+      }
+    });
+    assert("TEST AZ-H empty output single call", calls === 1);
+    assert("TEST AZ-H does not throw — has text", reply.assistantMessage.length > 10);
+    assert("TEST AZ-H stays clarify", reply.phase === "clarify");
+    assert("TEST AZ-H ready fallback", reply.assistantMessage === READY_REPAIR_FALLBACK);
+  }
+
+  // I — empty output with non-ready prior → clarify, not 503-class throw
+  {
+    const partialCtx = liveTurns(2);
+    let calls = 0;
+    const reply = await createSmartBriefReply({
+      apiKey: "t",
+      model: "m",
+      history: partialCtx.history,
+      message: partialCtx.message,
+      briefState: null,
+      callOpenAI: async function () {
+        calls += 1;
+        const err = new Error("empty_or_invalid_model_output");
+        err.code = "empty_or_invalid_model_output";
+        throw err;
+      }
+    });
+    assert("TEST AZ-I empty non-ready single call", calls === 1);
+    assert("TEST AZ-I clarify text", reply.assistantMessage.length > 10);
+    assert("TEST AZ-I phase clarify", reply.phase === "clarify");
+    assert("TEST AZ-I not recommend", reply.phase !== "recommend");
+  }
 }
 
 // ========== BA — NO briefState: history recovery keeps audience ==========

@@ -206,8 +206,33 @@
     if (replyArea) replyArea.disabled = isBusy;
   }
 
-  function setErrorVisible(visible) {
-    if (errorEl) errorEl.hidden = !visible;
+  function setErrorVisible(visible, code) {
+    if (!errorEl) return;
+    if (visible) {
+      errorEl.textContent = errorMessageForCode(code);
+      errorEl.hidden = false;
+    } else {
+      errorEl.hidden = true;
+    }
+  }
+
+  function errorMessageForCode(code) {
+    if (code === "client_timeout") {
+      return "Превышено время ожидания ответа. Попробуйте ещё раз.";
+    }
+    if (code === "rate_limited") {
+      return "Слишком много запросов подряд. Подождите немного и попробуйте снова.";
+    }
+    if (code === "provider_timeout") {
+      return "Сервис ответа сейчас отвечает слишком долго. Попробуйте ещё раз.";
+    }
+    if (code === "provider_upstream") {
+      return "Временный сбой внешнего сервиса ответа. Попробуйте ещё раз.";
+    }
+    if (code === "validation_error") {
+      return "Не удалось отправить сообщение. Проверьте текст и попробуйте снова.";
+    }
+    return "Не удалось получить ответ. Попробуйте ещё раз.";
   }
 
   function updateContactVisibility() {
@@ -246,7 +271,7 @@
 
   function requestChat(message) {
     if (!apiUrl) {
-      return Promise.reject(new Error("unavailable"));
+      return Promise.reject(Object.assign(new Error("unavailable"), { code: "unavailable" }));
     }
 
     var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -284,6 +309,12 @@
             }
             return payload;
           });
+      })
+      .catch(function (err) {
+        if (err && (err.name === "AbortError" || err.code === 20)) {
+          throw Object.assign(new Error("client_timeout"), { code: "client_timeout" });
+        }
+        throw err;
       })
       .finally(function () {
         if (timer) window.clearTimeout(timer);
@@ -357,7 +388,7 @@
           setReplyValidity(true);
         }
       })
-      .catch(function () {
+      .catch(function (err) {
         if (loadingEl && loadingEl.parentNode) {
           loadingEl.parentNode.removeChild(loadingEl);
         }
@@ -367,7 +398,7 @@
         if (replyArea && !replyArea.value.trim()) {
           replyArea.value = message;
         }
-        setErrorVisible(true);
+        setErrorVisible(true, err && err.code);
       })
       .finally(function () {
         setBusy(false);

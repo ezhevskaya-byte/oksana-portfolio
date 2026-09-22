@@ -204,6 +204,9 @@ assert(
 );
 assert("JS loading lock present", /if\s*\(\s*loading\s*\)\s*return/.test(js));
 assert("JS error rollback removes optimistic bubbles", /userEl\.parentNode\.removeChild/.test(js));
+assert("JS maps client_timeout distinctly", /client_timeout/.test(js) && /Превышено время ожидания/.test(js));
+assert("JS maps rate_limited distinctly", /rate_limited/.test(js) && /Слишком много запросов/.test(js));
+assert("JS maps provider_timeout distinctly", /provider_timeout/.test(js) && /слишком долго/.test(js));
 assert("JS no API secrets", !/sk-|OPENAI_API_KEY|Bearer\s/.test(js));
 assert("JS no hard-coded test Worker URL", !/smart-brief-api-test/.test(js));
 

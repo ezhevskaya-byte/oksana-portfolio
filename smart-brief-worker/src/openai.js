@@ -4,6 +4,7 @@ import { TEXT_FORMAT } from "./schema.js";
 import {
   enforceGates,
   pickMissingFocus,
+  evaluateBriefReady,
   buildUserTurns,
   formatUserTurnsBlock,
   selectClarifyMessage,
@@ -12,6 +13,24 @@ import {
   selectFirstTurnMessage,
   READY_REPAIR_FALLBACK
 } from "./gate.js";
+
+function emptyCoverageSkeleton() {
+  return {
+    business: { status: "unknown", sources: [] },
+    goal: { status: "unknown", sources: [] },
+    audienceInput: { status: "unknown", sources: [] },
+    customerJourney: { status: "unknown", sources: [] },
+    friction: { status: "unknown", sources: [] },
+    existingTools: { status: "unknown", sources: [] },
+    desiredFlow: { status: "unknown", sources: [] }
+  };
+}
+
+function throwCoded(message, code) {
+  const err = new Error(message);
+  err.code = code;
+  throw err;
+}
 
 function extractOutputText(payload) {
   if (!payload || typeof payload !== "object") return "";
@@ -152,22 +171,38 @@ async function callOpenAI({ apiKey, model, input, instructions }) {
 
   let response;
   try {
-    response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        Authorization: "Bearer " + apiKey,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: model || DEFAULT_MODEL,
-        instructions: instructions || RUNTIME_INSTRUCTIONS,
-        input,
-        store: false,
-        max_output_tokens: LIMITS.maxOutputTokens,
-        text: { format: TEXT_FORMAT }
-      })
-    });
+    try {
+      response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Authorization: "Bearer " + apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: model || DEFAULT_MODEL,
+          instructions: instructions || RUNTIME_INSTRUCTIONS,
+          input,
+          store: false,
+          max_output_tokens: LIMITS.maxOutputTokens,
+          text: { format: TEXT_FORMAT }
+        })
+      });
+    } catch (fetchErr) {
+      const aborted =
+        Boolean(fetchErr) &&
+        (fetchErr.name === "AbortError" ||
+          fetchErr.code === 20 ||
+          /aborted/i.test(String(fetchErr.message || "")));
+      console.error("[smart-brief] openai_fetch_failed", {
+        aborted: aborted,
+        name: fetchErr && fetchErr.name
+      });
+      throwCoded(
+        aborted ? "provider_timeout" : "provider_fetch_failed",
+        aborted ? "provider_timeout" : "unavailable"
+      );
+    }
   } finally {
     clearTimeout(timer);
   }
@@ -199,12 +234,18 @@ async function callOpenAI({ apiKey, model, input, instructions }) {
       param: upstreamParam,
       message: upstreamMessage
     });
-    const err = new Error("openai_http_" + response.status);
-    err.code = "unavailable";
-    throw err;
+    throwCoded("openai_http_" + response.status, "provider_upstream");
   }
 
   const payload = await response.json();
+  if (payload && payload.status === "incomplete") {
+    const reason =
+      payload.incomplete_details && typeof payload.incomplete_details.reason === "string"
+        ? payload.incomplete_details.reason
+        : "unknown";
+    console.error("[smart-brief] openai_incomplete", { reason: reason });
+  }
+
   const rawText = extractOutputText(payload);
   const parsed = parseJsonObject(rawText);
   const turn = normalizeModelTurn(parsed);
@@ -212,11 +253,38 @@ async function callOpenAI({ apiKey, model, input, instructions }) {
     turn &&
     (turn.assistantMessage || turn.clarifyFallbackMessage);
   if (!hasClientText) {
-    const err = new Error("empty_or_invalid_model_output");
-    err.code = "unavailable";
-    throw err;
+    throwCoded("empty_or_invalid_model_output", "empty_or_invalid_model_output");
   }
   return turn;
+}
+
+/**
+ * Soft degrade after the sole provider call produced unusable output.
+ * Preserves briefState continuum; never invents recommend/expertPlan; no 2nd OpenAI call.
+ */
+function softDegradeFromPrior(priorBriefState, userTurns) {
+  const merged = mergeBriefCoverage(priorBriefState, emptyCoverageSkeleton(), userTurns);
+  const ready = evaluateBriefReady(merged.coverage, userTurns);
+  if (ready.ready) {
+    return readyUnpublishableFallback(merged.briefState);
+  }
+  return toClarifyPublic(
+    {
+      assistantMessage: "",
+      phase: "clarify",
+      done: false,
+      briefCoverage: merged.coverage,
+      nextInformationNeed: { focus: "none", reason: "empty_model_output" },
+      clarifyFallbackMessage: "",
+      recommendationMode: "none",
+      lowEngagement: false,
+      expertPlan: null
+    },
+    ready.missing,
+    merged.briefState,
+    merged.coverage,
+    userTurns
+  );
 }
 
 /** Clarify repair when Gate1 still has real missing fields. */
@@ -338,7 +406,17 @@ export async function createSmartBriefReply({
   const instructions = buildInstructions(RUNTIME_INSTRUCTIONS, userTurns, firstTurn);
 
   // Sole provider round-trip for this request.
-  let turn = await callModel({ apiKey, model, input, instructions });
+  let turn;
+  try {
+    turn = await callModel({ apiKey, model, input, instructions });
+  } catch (err) {
+    // Empty/truncated/incomplete model JSON: degrade to server text (HTTP 200 path).
+    // Do NOT spend a second provider call. Re-throw timeout/upstream for distinct 503 codes.
+    if (err && err.code === "empty_or_invalid_model_output") {
+      return softDegradeFromPrior(priorBriefState, userTurns);
+    }
+    throw err;
+  }
 
   const merged = mergeBriefCoverage(priorBriefState, turn.briefCoverage, userTurns);
   turn.briefCoverage = merged.coverage;
@@ -407,6 +485,7 @@ export const __test__ = {
   toClarifyPublic,
   toReadyFallbackPublic,
   readyUnpublishableFallback,
+  softDegradeFromPrior,
   buildInstructions,
   createSmartBriefReply
 };

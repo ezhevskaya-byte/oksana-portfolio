@@ -71,7 +71,14 @@ async function handleChat(request, env, origin) {
       200,
       origin
     );
-  } catch (_err) {
+  } catch (err) {
+    const code = err && typeof err.code === "string" ? err.code : "";
+    if (code === "provider_timeout") {
+      return errorResponse("provider_timeout", 503, origin);
+    }
+    if (code === "provider_upstream") {
+      return errorResponse("provider_upstream", 503, origin);
+    }
     return errorResponse("unavailable", 503, origin);
   }
 }

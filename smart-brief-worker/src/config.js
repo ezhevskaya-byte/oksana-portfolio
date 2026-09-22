@@ -15,8 +15,8 @@ export const LIMITS = {
   maxBriefStateChars: 16000,
   /** Max sources stored per coverage field in briefState. */
   maxSourcesPerField: 8,
-  /** OpenAI max_output_tokens (raised slightly for structured fields). */
-  maxOutputTokens: 1400,
+  /** OpenAI max_output_tokens (room for coverage sources + expertPlan without truncation). */
+  maxOutputTokens: 2200,
   /** Fetch timeout for OpenAI (ms). */
   openaiTimeoutMs: 45000,
   /** Best-effort in-memory rate limit window (ms). */
