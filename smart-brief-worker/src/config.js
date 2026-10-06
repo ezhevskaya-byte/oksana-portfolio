@@ -6,9 +6,9 @@ export const LIMITS = {
   /** Max characters in a single user message. */
   maxMessageChars: 4000,
   /** Max history items accepted from client (before trimming for model). */
-  maxHistoryItems: 24,
+  maxHistoryItems: 40,
   /** Max history items sent to the model. */
-  maxHistoryForModel: 12,
+  maxHistoryForModel: 16,
   /** Max characters across history contents sent to the model. */
   maxHistoryCharsForModel: 12000,
   /** Max JSON chars for opaque briefState from client (ignore if larger). */
@@ -26,7 +26,19 @@ export const LIMITS = {
   /** Best-effort in-memory rate limit window (ms). */
   rateLimitWindowMs: 60_000,
   /** Best-effort max requests per IP per window (single isolate only). */
-  rateLimitMaxPerWindow: 20
+  rateLimitMaxPerWindow: 20,
+
+  // --- Voice Input V1 / SpeechKit STT (isolated from /api/chat) ---
+  /** Max raw audio body size for POST /api/transcribe (SpeechKit sync ≤1 MB). */
+  sttMaxUploadBytes: 1_000_000,
+  /** Max LPCM duration accepted (SpeechKit sync ≤30 s); client should stop earlier. */
+  sttMaxDurationSec: 30,
+  /** LPCM sample rate for V1 (Hz). */
+  sttLpcmSampleRateHz: 16000,
+  /** SpeechKit sync fetch timeout (ms). */
+  sttTimeoutMs: 11000,
+  /** Separate STT rate limit max requests per IP per window. */
+  sttRateLimitMaxPerWindow: 10
 };
 
 /** Gate / engagement policy (server-side, not trusted from client). */

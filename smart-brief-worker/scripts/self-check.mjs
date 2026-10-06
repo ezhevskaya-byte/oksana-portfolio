@@ -218,6 +218,15 @@ assert("best-effort rate limit trips in isolate", hitLimit === true);
   assert("wrangler no API key literals", !/AQVN|sk-[a-zA-Z0-9]{20,}|YANDEX_API_KEY\s*=\s*"[^"]+"/.test(toml));
   assert("wrangler YANDEX_FOLDER_ID present as var", /YANDEX_FOLDER_ID\s*=\s*"b1gkei7lv9uhdqqdtpgc"/.test(toml));
   assert("provider timeout 50s", LIMITS.openaiTimeoutMs === 50000);
+  assert("stt timeout 11s", LIMITS.sttTimeoutMs === 11000);
+  assert("stt max upload 1MB", LIMITS.sttMaxUploadBytes === 1_000_000);
+  assert("stt rate limit 10", LIMITS.sttRateLimitMaxPerWindow === 10);
+
+  const dialogueDoc = fs.readFileSync(new URL("../SMART-BRIEF-DIALOGUE.md", import.meta.url), "utf8");
+  assert("dialogue SoD doc exists", dialogueDoc.length > 500);
+  assert("dialogue SoD names useful next step", /следующий полезный шаг|useful next step/i.test(dialogueDoc));
+  assert("dialogue SoD stages", /EXISTING/.test(dialogueDoc) && /IDEA/.test(dialogueDoc));
+  assert("runtime mentions dialogue sufficiency", /dialogue-layer|SMART-BRIEF-DIALOGUE/i.test(RUNTIME_INSTRUCTIONS));
 }
 
 if (failed) {

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>STT smoke — запись LPCM (только тест)</title>
+  <style>
+    :root {
+      --bg: #1a1b1e;
+      --fg: #f2f0ea;
+      --muted: #a8a59c;
+      --accent: #2f6fed;
+      --danger: #c44;
+      --ok: #2a8f5b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(1200px 600px at 20% 0%, #2a2d36, var(--bg));
+      color: var(--fg);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    main {
+      width: min(440px, 100%);
+      display: grid;
+      gap: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 650;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.95rem;
+    }
+    .phrase {
+      padding: 12px 14px;
+      border: 1px solid #3a3d46;
+      border-radius: 10px;
+      background: #22242a;
+      color: var(--fg);
+      font-size: 1.05rem;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      color: #fff;
+      background: var(--accent);
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    button.stop { background: var(--danger); }
+    button.download { background: var(--ok); }
+    #status {
+      min-height: 1.4em;
+      font-variant-numeric: tabular-nums;
+    }
+    .warn {
+      font-size: 0.85rem;
+      color: #c9b27a;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>STT smoke-test recorder</h1>
+    <p>Временный инструмент. Не часть Smart Brief. Пишет raw LPCM 16&nbsp;kHz mono 16-bit LE для <code>/api/transcribe</code>.</p>
+    <div class="phrase">Скажите: «Хочу сайт для студии йоги»</div>
+    <div class="row">
+      <button id="btnRecord" type="button">Записать</button>
+      <button id="btnStop" class="stop" type="button" disabled>Стоп</button>
+      <button id="btnDownload" class="download" type="button" disabled>Скачать .lpcm</button>
+    </div>
+    <p id="status">Готово к записи.</p>
+    <p class="warn">Максимум ~8 с. После скачивания напишите ассистенту — он отправит файл на test Worker.</p>
+  </main>
+  <script>
+    const TARGET_RATE = 16000;
+    const MAX_SEC = 8;
+    const btnRecord = document.getElementById("btnRecord");
+    const btnStop = document.getElementById("btnStop");
+    const btnDownload = document.getElementById("btnDownload");
+    const statusEl = document.getElementById("status");
+
+    let mediaStream = null;
+    let audioCtx = null;
+    let processor = null;
+    let source = null;
+    let chunks = [];
+    let startedAt = 0;
+    let timer = null;
+    let lpcmBytes = null;
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function floatTo16BitPCM(float32) {
+      const out = new Int16Array(float32.length);
+      for (let i = 0; i < float32.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32[i]));
+        out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      return out;
+    }
+
+    /** Linear resample mono float32 → TARGET_RATE */
+    function resampleLinear(input, fromRate, toRate) {
+      if (fromRate === toRate) return input;
+      const ratio = fromRate / toRate;
+      const outLen = Math.max(1, Math.floor(input.length / ratio));
+      const out = new Float32Array(outLen);
+      for (let i = 0; i < outLen; i++) {
+        const pos = i * ratio;
+        const i0 = Math.floor(pos);
+        const i1 = Math.min(i0 + 1, input.length - 1);
+        const t = pos - i0;
+        out[i] = input[i0] * (1 - t) + input[i1] * t;
+      }
+      return out;
+    }
+
+    function mergeFloatChunks(list) {
+      let total = 0;
+      for (const c of list) total += c.length;
+      const merged = new Float32Array(total);
+      let offset = 0;
+      for (const c of list) {
+        merged.set(c, offset);
+        offset += c.length;
+      }
+      return merged;
+    }
+
+    async function startRecording() {
+      lpcmBytes = null;
+      btnDownload.disabled = true;
+      chunks = [];
+
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
+
+      audioCtx = new AudioContext();
+      source = audioCtx.createMediaStreamSource(mediaStream);
+      processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      // Keep graph alive without monitoring to speakers (avoids echo).
+      const mute = audioCtx.createGain();
+      mute.gain.value = 0;
+      processor.onaudioprocess = (ev) => {
+        const input = ev.inputBuffer.getChannelData(0);
+        chunks.push(new Float32Array(input));
+      };
+      source.connect(processor);
+      processor.connect(mute);
+      mute.connect(audioCtx.destination);
+
+      startedAt = performance.now();
+      btnRecord.disabled = true;
+      btnStop.disabled = false;
+      setStatus("Идёт запись… 0.0 с");
+
+      timer = setInterval(() => {
+        const sec = (performance.now() - startedAt) / 1000;
+        setStatus(`Идёт запись… ${sec.toFixed(1)} с`);
+        if (sec >= MAX_SEC) stopRecording();
+      }, 100);
+    }
+
+    function stopRecording() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      btnStop.disabled = true;
+
+      try {
+        if (processor) {
+          processor.disconnect();
+          processor.onaudioprocess = null;
+        }
+        if (source) source.disconnect();
+        if (audioCtx) audioCtx.close();
+      } catch (_e) {}
+
+      if (mediaStream) {
+        for (const track of mediaStream.getTracks()) track.stop();
+      }
+
+      const nativeRate = audioCtx && audioCtx.sampleRate ? audioCtx.sampleRate : 48000;
+      const merged = mergeFloatChunks(chunks);
+      const resampled = resampleLinear(merged, nativeRate, TARGET_RATE);
+      const pcm16 = floatTo16BitPCM(resampled);
+      lpcmBytes = new Uint8Array(pcm16.buffer);
+      const duration = (lpcmBytes.byteLength / (TARGET_RATE * 2)).toFixed(2);
+
+      mediaStream = null;
+      audioCtx = null;
+      processor = null;
+      source = null;
+      chunks = [];
+
+      btnRecord.disabled = false;
+      btnDownload.disabled = lpcmBytes.byteLength === 0;
+      setStatus(
+        lpcmBytes.byteLength
+          ? `Готово: ${duration} с, ${lpcmBytes.byteLength} байт, LPCM ${TARGET_RATE} Hz mono. Нажмите «Скачать .lpcm».`
+          : "Пустая запись. Попробуйте ещё раз."
+      );
+    }
+
+    function downloadLpcm() {
+      if (!lpcmBytes || !lpcmBytes.byteLength) return;
+      const blob = new Blob([lpcmBytes], { type: "audio/lpcm" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "smoke-phrase.lpcm";
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus(
+        "Файл smoke-phrase.lpcm скачан (обычно в папку «Загрузки»). Напишите ассистенту: запись готова."
+      );
+    }
+
+    btnRecord.addEventListener("click", () => {
+      startRecording().catch((err) => {
+        setStatus("Нет доступа к микрофону: " + (err && err.message ? err.message : String(err)));
+        btnRecord.disabled = false;
+        btnStop.disabled = true;
+      });
+    });
+    btnStop.addEventListener("click", stopRecording);
+    btnDownload.addEventListener("click", downloadLpcm);
+  </script>
+</body>
+</html>

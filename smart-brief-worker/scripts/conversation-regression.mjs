@@ -90,10 +90,11 @@ function runNiche(name, steps) {
     first
   );
   if (steps[0].expectAck) {
-    assert(name + " FIRST ack", /учёл|не буду просить/i.test(firstOut));
+    assert(name + " FIRST ack", /Понял:|учёл|Спасибо/i.test(firstOut));
     assert(name + " FIRST no retell", !/Расскажите своими словами/i.test(firstOut));
+    assert(name + " FIRST no internal", !/не анкета|не буду просить|я уже учёл/i.test(firstOut));
   } else {
-    assert(name + " FIRST free discovery", /не анкета|своими словами/i.test(firstOut));
+    assert(name + " FIRST free discovery", /своими словами|Спасибо, что написали/i.test(firstOut));
   }
   assert(name + " FIRST identity", /Марк/i.test(firstOut));
 

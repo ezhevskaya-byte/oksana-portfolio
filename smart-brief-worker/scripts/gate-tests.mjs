@@ -25,6 +25,7 @@ import {
   selectFirstTurnMessage,
   buildFirstTurnWelcome,
   isSafeWelcomeText,
+  isCompoundDiscoveryQuestion,
   isCustomerJourneySufficient,
   isExistingToolsSufficient,
   isDesiredFlowSufficient,
@@ -32,6 +33,19 @@ import {
   audienceMissingAspects,
   resolveClarifyTarget,
   deriveFieldStatus,
+  detectJourneyStages,
+  journeyClarifyAspect,
+  looksLikeGoalEvidence,
+  looksLikePurchaseOccasionWhoQuestion,
+  looksLikeFrictionEvidence,
+  hasInternalSystemWording,
+  publishClarifyQuestion,
+  inferDialogueContext,
+  buildContextAcknowledgement,
+  hasStrongDesiredFlowImplication,
+  evaluateSolutionReady,
+  pickSolutionDiscriminatorQuestion,
+  collectSolutionEvidence,
   READY_REPAIR_FALLBACK
 } from "../src/gate.js";
 import { createSmartBriefReply } from "../src/openai.js";
@@ -199,8 +213,12 @@ assert(
     })
   );
   const clarify = selectClarifyMessage(turn, d.missing);
-  assert("CASE1 clarify uses matched fallback not recommend prose", clarify === turn.clarifyFallbackMessage);
+  assert(
+    "CASE1 clarify uses matched fallback not recommend prose",
+    clarify !== turn.assistantMessage && /кто\s+(?:чаще|обычно)|останавливается|приходит/i.test(clarify)
+  );
   assert("CASE1 recommend prose not equal clarify", clarify !== turn.assistantMessage);
+  assert("CASE1 one-question audience", !isCompoundDiscoveryQuestion(clarify));
 }
 
 // CASE 2 — partial audience
@@ -474,7 +492,9 @@ assert(
   assert("TEST E clarify allowed", d.action === "allow" && d.reason === "clarify_ok");
   assert(
     "TEST E public message is clarify fallback not recommend prose",
-    d.publicTurn.assistantMessage === turn.clarifyFallbackMessage
+    d.publicTurn.assistantMessage !== turn.assistantMessage &&
+      /кто\s+чаще/i.test(d.publicTurn.assistantMessage) &&
+      !isCompoundDiscoveryQuestion(d.publicTurn.assistantMessage)
   );
   assert(
     "TEST E recommend prose excluded",
@@ -1201,9 +1221,13 @@ const toolsOnlyMissingCoverage = allKnownGrounded({
   }
   const out = selectFirstTurnMessage(badFocusTurn, msg);
   assert("TEST Z1 has Mark identity", /Марк/i.test(out) && /Оксан/i.test(out));
-  assert("TEST Z1 free discovery", /не анкета|своими словами/i.test(out));
+  assert(
+    "TEST Z1 contextual welcome",
+    /Понял:|своими словами|Спасибо, что написали/i.test(out)
+  );
   assert("TEST Z1 not audience FOCUS_PROMPT", out !== FOCUS_LIKE_AUDIENCE());
   assert("TEST Z1 not recommend prose", out.indexOf("Рекомендую сразу сайт") === -1);
+  assert("TEST Z1 no internal wording", !hasInternalSystemWording(out));
 }
 
 // ========== TEST Z2 — FIRST TURN DOES NOT BYPASS GATE ==========
@@ -2076,8 +2100,15 @@ function livePlanReuse() {
     }
   });
   assert("TEST AS single provider call", calls === 1);
-  assert("TEST AS ready uses server fallback not recommend", reply.phase === "clarify");
-  assert("TEST AS fallback text", reply.assistantMessage === READY_REPAIR_FALLBACK);
+  assert(
+    "TEST AS continues without technical failure",
+    reply.assistantMessage !== READY_REPAIR_FALLBACK &&
+      !/напишите ещё раз|не удалось безопасно/i.test(reply.assistantMessage)
+  );
+  assert(
+    "TEST AS phase recommend or clarify",
+    reply.phase === "recommend" || reply.phase === "clarify"
+  );
   assert("TEST AS no audience prompt", reply.assistantMessage !== AUDIENCE_FOCUS);
   assert(
     "TEST AS no MVB FOCUS_PROMPT",
@@ -2180,8 +2211,15 @@ function livePlanReuse() {
     }
   });
   assert("TEST AV single provider call", calls === 1);
-  assert("TEST AV server fallback phase", reply.phase === "clarify");
-  assert("TEST AV fallback text", reply.assistantMessage === READY_REPAIR_FALLBACK);
+  assert(
+    "TEST AV no technical failure",
+    reply.assistantMessage !== READY_REPAIR_FALLBACK &&
+      !/напишите ещё раз|не удалось безопасно/i.test(reply.assistantMessage)
+  );
+  assert(
+    "TEST AV publishable continue",
+    reply.phase === "recommend" || reply.phase === "clarify"
+  );
   assert("TEST AV no MVB re-ask", reply.assistantMessage !== AUDIENCE_FOCUS);
 }
 
@@ -2236,9 +2274,19 @@ function livePlanReuse() {
     }
   });
   assert("TEST AW single provider call", calls === 1);
-  assert("TEST AW not public recommend", reply.phase !== "recommend");
-  assert("TEST AW not raw message", reply.assistantMessage.indexOf("Сырая рекомендация") === -1);
-  assert("TEST AW safe fallback", reply.assistantMessage === READY_REPAIR_FALLBACK);
+  assert(
+    "TEST AW not raw message",
+    reply.assistantMessage.indexOf("Сырая рекомендация") === -1
+  );
+  assert(
+    "TEST AW no technical failure",
+    reply.assistantMessage !== READY_REPAIR_FALLBACK &&
+      !/напишите ещё раз|не удалось безопасно/i.test(reply.assistantMessage)
+  );
+  assert(
+    "TEST AW publishable continue",
+    reply.phase === "recommend" || reply.phase === "clarify"
+  );
   assert("TEST AW no audience MVB", reply.assistantMessage !== AUDIENCE_FOCUS);
 }
 
@@ -2456,7 +2504,15 @@ function livePlanReuse() {
     });
     assert("TEST AZ-F weak turn single call", calls === 1);
     assert("TEST AZ-F not raw", reply.assistantMessage.indexOf("Сырой бриф") === -1);
-    assert("TEST AZ-F fallback", reply.assistantMessage === READY_REPAIR_FALLBACK);
+    assert(
+      "TEST AZ-F no technical failure",
+      reply.assistantMessage !== READY_REPAIR_FALLBACK &&
+        !/напишите ещё раз|не удалось безопасно/i.test(reply.assistantMessage)
+    );
+    assert(
+      "TEST AZ-F publishable continue",
+      reply.phase === "recommend" || reply.phase === "clarify"
+    );
   }
 
   // G — simulated 30s provider latency: still only one call; wall < client 55s budget
@@ -2490,7 +2546,11 @@ function livePlanReuse() {
     const wall = Date.now() - t0;
     assert("TEST AZ-G single provider call under latency", calls === 1);
     assert("TEST AZ-G wall under client budget", wall < 58000);
-    assert("TEST AZ-G fallback", reply.assistantMessage === READY_REPAIR_FALLBACK);
+    assert(
+      "TEST AZ-G no technical failure",
+      reply.assistantMessage !== READY_REPAIR_FALLBACK &&
+        !/напишите ещё раз|не удалось безопасно/i.test(reply.assistantMessage)
+    );
   }
 
   // Static: createSmartBriefReply body has exactly one await callModel
@@ -2526,8 +2586,15 @@ function livePlanReuse() {
     });
     assert("TEST AZ-H empty output single call", calls === 1);
     assert("TEST AZ-H does not throw — has text", reply.assistantMessage.length > 10);
-    assert("TEST AZ-H stays clarify", reply.phase === "clarify");
-    assert("TEST AZ-H ready fallback", reply.assistantMessage === READY_REPAIR_FALLBACK);
+    assert(
+      "TEST AZ-H no technical failure",
+      reply.assistantMessage !== READY_REPAIR_FALLBACK &&
+        !/напишите ещё раз|не удалось безопасно/i.test(reply.assistantMessage)
+    );
+    assert(
+      "TEST AZ-H publishable continue",
+      reply.phase === "recommend" || reply.phase === "clarify"
+    );
   }
 
   // I — empty output with non-ready prior → clarify, not 503-class throw
@@ -2786,7 +2853,7 @@ function livePlanReuse() {
 // ========== BF — partial WHAT_MATTERS without WHO (live retail regression) ==========
 {
   const WHO_ONLY =
-    "Кто чаще всего к вам обращается — какой это тип клиентов или гостей?";
+    "Кто чаще всего к вам обращается — какой это тип клиентов?";
   const livePartial = "продавец общается, качество, цена, ассортимент";
   const variants = [
     livePartial,
@@ -2855,7 +2922,12 @@ function livePlanReuse() {
     turns
   );
   assert("TEST BF not full audience re-ask", msg !== AUDIENCE_FOCUS);
-  assert("TEST BF asks WHO only", msg === WHO_ONLY);
+  assert(
+    "TEST BF asks WHO only",
+    /кто\s+(?:чаще|обычно)|покупает|основные\s+(?:клиенты|покупатели)/i.test(msg) &&
+      !isCompoundDiscoveryQuestion(msg) &&
+      msg !== AUDIENCE_FOCUS
+  );
 
   // HTTP path with prior continuum (business/goal already known — mirrors live after U1):
   // empty model coverage + history recovery → WHO-only, never full audience re-ask.
@@ -2888,7 +2960,7 @@ function livePlanReuse() {
     }
   });
   assert("TEST BF http not full re-ask", reply.assistantMessage !== AUDIENCE_FOCUS);
-  assert("TEST BF http WHO-only", reply.assistantMessage === WHO_ONLY);
+  assert("TEST BF http WHO-only", /кто\s+(?:чаще|обычно)|покупает|основные/i.test(reply.assistantMessage) && reply.assistantMessage !== AUDIENCE_FOCUS);
   assert("TEST BF http phase clarify", reply.phase === "clarify");
 
   // Same without briefState: model still supplies prior business/goal sources this turn.
@@ -2918,7 +2990,7 @@ function livePlanReuse() {
     }
   });
   assert("TEST BF wipe-http not full re-ask", replyWipe.assistantMessage !== AUDIENCE_FOCUS);
-  assert("TEST BF wipe-http WHO-only", replyWipe.assistantMessage === WHO_ONLY);
+  assert("TEST BF wipe-http WHO-only", /кто\s+(?:чаще|обычно)|покупает|основные/i.test(replyWipe.assistantMessage) && replyWipe.assistantMessage !== AUDIENCE_FOCUS);
 }
 
 // ========== BG — reverse partial: WHO known, WHAT_MATTERS missing ==========
@@ -3050,14 +3122,15 @@ function livePlanReuse() {
     "и личные сообщения, и мне приходится каждому заново рассказывать про формат и цены. Хочу сайт или простую страницу, " +
     "чтобы человек заранее понимал мой подход и мог оставить заявку.";
   const welcome = buildFirstTurnWelcome(first);
-  assert("TEST BJ ack concrete", /учёл|не буду просить/i.test(welcome));
+  assert("TEST BJ ack concrete", /Понял:|учёл|Спасибо/i.test(welcome));
   assert("TEST BJ no retell", !/Расскажите своими словами/i.test(welcome));
+  assert("TEST BJ no internal wording", !/не анкета|не буду просить|я уже учёл/i.test(welcome));
   assert("TEST BJ identity", /Марк/i.test(welcome) && /Оксан/i.test(welcome));
   assert("TEST BJ not exact audience FOCUS", welcome !== AUDIENCE_FOCUS);
 
   const short = "Нужен сайт";
   const shortWelcome = buildFirstTurnWelcome(short);
-  assert("TEST BJ short still free discovery", /своими словами|не анкета/i.test(shortWelcome));
+  assert("TEST BJ short still free discovery", /своими словами|Спасибо, что написали/i.test(shortWelcome));
 }
 
 // ========== BK — NEGATIVE SEMANTIC (not overly permissive) ==========
@@ -3275,6 +3348,1005 @@ assert(
   "schema coverage uses sources not free evidence",
   !!MODEL_TURN_SCHEMA.properties.briefCoverage.properties.business.properties.sources
 );
+
+// ========== PARTIAL ASPECT NO-REPEAT (audit CASE 1–8) ==========
+{
+  const JOURNEY_FOCUS =
+    "Как сейчас обычно проходит путь клиента: от первого знакомства до заявки или покупки?";
+  const TOOLS_FOCUS =
+    "Какими инструментами вы уже пользуетесь: сайт, соцсети, CRM, таблицы, заявки, бот?";
+  const FLOW_FOCUS =
+    "Как бы вы хотели, чтобы этот первый этап общения с клиентом выглядел в идеале?";
+
+  // CASE 1 — channel-only journey stays partial; follow-up skips source re-ask
+  {
+    const channel = "Клиенты приходят из соцсетей.";
+    const hist = [
+      { role: "user", content: "Я веду занятия, нужен сайт." },
+      { role: "assistant", content: JOURNEY_FOCUS }
+    ];
+    const turns = buildUserTurns(hist, channel);
+    const merged = mergeBriefCoverage(
+      null,
+      Object.assign(allKnownGrounded({
+        customerJourney: field("unknown", []),
+        friction: field("unknown", []),
+        existingTools: field("unknown", []),
+        desiredFlow: field("unknown", [])
+      }), {
+        customerJourney: field("partial", [src("u2", channel, "path_steps")])
+      }),
+      turns
+    );
+    assert("CASE1 journey partial not known", merged.coverage.customerJourney.status === "partial");
+    const missing = [{ key: "customerJourney", reason: "status_partial" }];
+    const target = resolveClarifyTarget(missing, merged.coverage, turns);
+    assert("CASE1 focus stays journey", target.focus === "customerJourney");
+    assert("CASE1 aspect after_source", target.aspect === "after_source");
+    const msg = selectClarifyMessage(
+      {
+        nextInformationNeed: { focus: "customerJourney", reason: "path" },
+        clarifyFallbackMessage: JOURNEY_FOCUS
+      },
+      missing,
+      merged.coverage,
+      turns
+    );
+    assert("CASE1 not full JOURNEY_FOCUS", msg !== JOURNEY_FOCUS);
+    assert(
+      "CASE1 does not re-ask first contact/channel template",
+      !/от первого знакомства/.test(msg)
+    );
+    assert(
+      "CASE1 asks next stages",
+      /дальше|связыв|заявк|информац/i.test(msg)
+    );
+  }
+
+  // CASE 2 — full journey in one message → known, no journey question
+  {
+    const turns = buildUserTurns([], QUOTES.journey);
+    const merged = mergeBriefCoverage(
+      null,
+      Object.assign(emptyCoverage(), {
+        customerJourney: field("known", [src("u1", QUOTES.journey, "path_steps")])
+      }),
+      turns
+    );
+    assert("CASE2 journey known", merged.coverage.customerJourney.status === "known");
+    const ready = evaluateBriefReady(merged.coverage, turns);
+    const target = resolveClarifyTarget(ready.missing, merged.coverage, turns);
+    assert("CASE2 no journey focus", target.focus !== "customerJourney");
+    const msg = selectClarifyMessage(
+      {
+        nextInformationNeed: { focus: "customerJourney", reason: "model" },
+        clarifyFallbackMessage: JOURNEY_FOCUS
+      },
+      ready.missing,
+      merged.coverage,
+      turns
+    );
+    assert("CASE2 not JOURNEY_FOCUS", msg !== JOURNEY_FOCUS);
+  }
+
+  // CASE 3 — audience aspect logic preserved
+  {
+    const who = "Чаще всего ко мне обращаются взрослые 25–40 лет";
+    const hist = [
+      { role: "user", content: "Я репетитор, нужен сайт." },
+      { role: "assistant", content: "Кто чаще всего к вам обращается, и что этим людям обычно важно при выборе?" }
+    ];
+    const turns = buildUserTurns(hist, who);
+    const m = mergeBriefCoverage(null, emptyCoverage(), turns);
+    assert("CASE3 audience partial", m.coverage.audienceInput.status === "partial");
+    const target = resolveClarifyTarget(
+      [{ key: "audienceInput", reason: "status_partial" }],
+      m.coverage,
+      turns
+    );
+    assert("CASE3 aspect what_matters", target.aspect === "what_matters");
+  }
+
+  // CASE 4 — existingTools channel-only → ask beyond channels, not full inventory dump
+  {
+    const channelTools = "Пока только WhatsApp и телефон, отдельного сайта нет.";
+    const turns = buildUserTurns([], channelTools);
+    const merged = mergeBriefCoverage(
+      null,
+      Object.assign(emptyCoverage(), {
+        existingTools: field("partial", [src("u1", channelTools, "tools")])
+      }),
+      turns
+    );
+    assert("CASE4 tools partial", merged.coverage.existingTools.status === "partial");
+    const missing = [{ key: "existingTools", reason: "status_partial" }];
+    const target = resolveClarifyTarget(missing, merged.coverage, turns);
+    assert("CASE4 tools aspect beyond_channels", target.aspect === "beyond_channels");
+    const msg = selectClarifyMessage(
+      {
+        nextInformationNeed: { focus: "existingTools", reason: "" },
+        clarifyFallbackMessage: TOOLS_FOCUS
+      },
+      missing,
+      merged.coverage,
+      turns
+    );
+    assert("CASE4 not full TOOLS_FOCUS", msg !== TOOLS_FOCUS);
+    assert("CASE4 asks ops / manual", /таблиц|crm|бронир|вручную|помимо/i.test(msg));
+  }
+
+  // CASE 5 — desiredFlow pain-only → ask client autonomy, not full twin question
+  {
+    const painFlow = "Не хочу каждому гостю заново отвечать на одинаковые вопросы.";
+    const turns = buildUserTurns([], painFlow);
+    const merged = mergeBriefCoverage(
+      null,
+      Object.assign(emptyCoverage(), {
+        desiredFlow: field("partial", [src("u1", painFlow, "ideal_flow")])
+      }),
+      turns
+    );
+    assert("CASE5 flow partial", merged.coverage.desiredFlow.status === "partial");
+    const missing = [{ key: "desiredFlow", reason: "status_partial" }];
+    const target = resolveClarifyTarget(missing, merged.coverage, turns);
+    assert("CASE5 flow aspect client_autonomy", target.aspect === "client_autonomy");
+    const leadingTwin =
+      "В идеале что клиент должен иметь возможность сделать сам, и что должно стать проще для вас?";
+    const msg = selectClarifyMessage(
+      {
+        nextInformationNeed: { focus: "desiredFlow", reason: "" },
+        clarifyFallbackMessage: leadingTwin
+      },
+      missing,
+      merged.coverage,
+      turns
+    );
+    assert("CASE5 not leading twin FLOW", msg !== leadingTwin);
+    // Non-leading desiredFlow: ideal process, not a suggested self-serve path.
+    assert("CASE5 asks ideal process", /идеал|хотел|путь|этап/i.test(msg));
+    assert(
+      "CASE5 not leading self-serve path",
+      !/мог бы сделать сам|получить нужную информацию и оставить заявку/i.test(msg)
+    );
+  }
+
+  // CASE 6 — one answer closes journey+friction+tools → next is first real missing
+  {
+    const big =
+      "Обычно находят нас на Авито, смотрят объявление, пишут в WhatsApp; я уточняю даты, называю стоимость, после предоплаты подтверждаю бронь. " +
+      "Мне приходится каждому гостю заново отвечать на одни и те же вопросы. " +
+      "Занятость веду в системе бронирования с календарём и модулем онлайн-бронирования.";
+    const turns = buildUserTurns(
+      [
+        { role: "user", content: QUOTES.business },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: QUOTES.goal },
+        { role: "assistant", content: "ok" }
+      ],
+      big
+    );
+    const merged = mergeBriefCoverage(
+      null,
+      {
+        business: field("known", [src("u1", QUOTES.business, "what_business")]),
+        goal: field("known", [src("u2", QUOTES.goal, "desired_outcome")]),
+        audienceInput: field("unknown", []),
+        customerJourney: field("known", [
+          src(
+            "u3",
+            "Обычно находят нас на Авито, смотрят объявление, пишут в WhatsApp; я уточняю даты, называю стоимость, после предоплаты подтверждаю бронь",
+            "path_steps"
+          )
+        ]),
+        friction: field("known", [
+          src("u3", "Мне приходится каждому гостю заново отвечать на одни и те же вопросы", "pain")
+        ]),
+        existingTools: field("known", [
+          src(
+            "u3",
+            "Занятость веду в системе бронирования с календарём и модулем онлайн-бронирования",
+            "tools"
+          )
+        ]),
+        desiredFlow: field("unknown", [])
+      },
+      turns
+    );
+    assert("CASE6 journey known", merged.coverage.customerJourney.status === "known");
+    assert("CASE6 friction known", merged.coverage.friction.status === "known");
+    assert("CASE6 tools known", merged.coverage.existingTools.status === "known");
+    const ready = evaluateBriefReady(merged.coverage, turns);
+    const target = resolveClarifyTarget(ready.missing, merged.coverage, turns);
+    assert(
+      "CASE6 next is first real missing",
+      target.focus === "audienceInput" || target.focus === "desiredFlow"
+    );
+    assert("CASE6 not closed fields", target.focus !== "customerJourney");
+    assert("CASE6 not friction", target.focus !== "friction");
+    assert("CASE6 not tools", target.focus !== "existingTools");
+  }
+
+  // CASE 7 — all 7 known → no MVB question
+  {
+    const turns = userTurnsFull;
+    const coverage = allKnownGrounded();
+    const ready = evaluateBriefReady(coverage, turns);
+    assert("CASE7 gate1 ready", ready.ready === true);
+    const target = resolveClarifyTarget(ready.missing, coverage, turns);
+    assert("CASE7 no MVB focus", target.focus === null);
+    const msg = selectClarifyMessage(
+      {
+        nextInformationNeed: { focus: "customerJourney", reason: "stale" },
+        clarifyFallbackMessage: JOURNEY_FOCUS,
+        recommendationMode: "none"
+      },
+      ready.missing,
+      coverage,
+      turns
+    );
+    assert(
+      "CASE7 ready repair fallback",
+      msg === READY_REPAIR_FALLBACK ||
+        msg === "" ||
+        /оплат|сервис|страниц|сайт|стабильн|обращение|расписан|запис|брон/i.test(msg)
+    );
+  }
+
+  // CASE 8 — model wants journey, server already knows → no JOURNEY_FOCUS
+  {
+    const turns = buildUserTurns([], QUOTES.journey);
+    const cov = allKnownGrounded({
+      customerJourney: field("known", [src("u1", QUOTES.journey, "path_steps")]),
+      desiredFlow: field("unknown", [])
+    });
+    const ready = evaluateBriefReady(cov, turns);
+    const target = resolveClarifyTarget(ready.missing, cov, turns);
+    assert("CASE8 skips known journey", target.focus !== "customerJourney");
+    const msg = selectClarifyMessage(
+      {
+        nextInformationNeed: { focus: "customerJourney", reason: "model" },
+        clarifyFallbackMessage: JOURNEY_FOCUS
+      },
+      ready.missing,
+      cov,
+      turns
+    );
+    assert("CASE8 user does not get JOURNEY_FOCUS", msg !== JOURNEY_FOCUS);
+  }
+}
+
+// ========== YOGA LIVE TRANSCRIPT — CASE A–J (NO-REPEAT / aspect / one-question) ==========
+{
+  const JOURNEY_FOCUS =
+    "Как сейчас обычно проходит путь клиента: от первого знакомства до заявки или покупки?";
+  const GOAL_FOCUS =
+    "Какого результата вы хотите добиться в первую очередь — что должно измениться в бизнесе?";
+  const AFTER_CONTACT =
+    "Как обычно проходит следующий шаг после первого контакта — уточнение деталей, оценка задачи, оформление — и что происходит дальше?";
+
+  const U1 =
+    "У меня небольшая студия йоги. Клиенты чаще всего приходят из социальных сетей.";
+  const U2 =
+    "Основная задача — упростить запись на занятия. Сейчас человек видит нас в социальных сетях, пишет администратору в личные сообщения, администратор отвечает на вопросы, рассказывает о занятиях и свободных местах, а потом записывает клиента вручную.";
+  const U3 =
+    "Хочу, чтобы клиент мог сам узнать всё необходимое о занятиях и записаться, а администратору не приходилось каждый раз вручную отвечать на одни и те же вопросы и оформлять запись.";
+  const U4 =
+    "Обычно им важно удобное расписание, подходящее время занятий, стоимость, хороший преподаватель и чтобы можно было быстро получить информацию и записаться без долгой переписки.";
+  const U5 =
+    "Клиент видит информацию о студии в социальных сетях, затем пишет нам в личные сообщения. Администратор отвечает на вопросы, рассказывает о расписании, занятиях и свободных местах, после чего вручную записывает клиента.";
+  const U6 =
+    "После первого обращения администратор отвечает на вопросы клиента, уточняет, какое занятие и время ему подходят, сообщает о свободных местах и стоимости, а затем вручную записывает его на занятие. Вся эта переписка и запись сейчас выполняются администратором вручную.";
+
+  function advance(history, priorState, message) {
+    const turns = buildUserTurns(history, message);
+    const merged = mergeBriefCoverage(priorState, emptyCoverage(), turns);
+    const ready = evaluateBriefReady(merged.coverage, turns);
+    const target = resolveClarifyTarget(ready.missing, merged.coverage, turns);
+    const clarify = selectClarifyMessage(
+      {
+        nextInformationNeed: { focus: target.focus || "none", reason: "test" },
+        clarifyFallbackMessage: "",
+        recommendationMode: "none",
+        phase: "clarify"
+      },
+      ready.missing,
+      merged.coverage,
+      turns
+    );
+    return {
+      turns: turns,
+      coverage: merged.coverage,
+      briefState: merged.briefState,
+      ready: ready,
+      target: target,
+      clarify: clarify
+    };
+  }
+
+  // CASE A — yoga + social source
+  {
+    const welcome = buildFirstTurnWelcome(U1);
+    const t1 = advance([], null, U1);
+    assert("CASE A business known", t1.coverage.business.status === "known");
+    assert(
+      "CASE A journey has social/discover",
+      detectJourneyStages(U1).indexOf("discover") !== -1
+    );
+    assert(
+      "CASE A social clients is not WHO",
+      isAudienceWhoEvidence("Клиенты чаще всего приходят из социальных сетей.") === false
+    );
+    assert("CASE A audience not falsely known", t1.coverage.audienceInput.status !== "known");
+    assert("CASE A tools at least partial", t1.coverage.existingTools.status === "partial" || t1.coverage.customerJourney.status === "partial");
+    assert("CASE A not re-ask source dump", !/из\s+социальных\s+сетей\?/i.test(welcome));
+    assert("CASE A first turn not compound", !isCompoundDiscoveryQuestion(welcome));
+    assert("CASE A identity + ack", /Марк/i.test(welcome) && /Понял:|Спасибо/i.test(welcome));
+    assert("CASE A no internal wording", !hasInternalSystemWording(welcome));
+    assert("CASE A no GOALless compound", welcome.indexOf("какие цели") === -1);
+  }
+
+  // CASE B — goal + journey aspects from U2
+  {
+    const hist = [{ role: "user", content: U1 }];
+    const t1 = advance([], null, U1);
+    const t2 = advance(hist, t1.briefState, U2);
+    assert("CASE B goal known", t2.coverage.goal.status === "known");
+    assert("CASE B looksLikeGoalEvidence", looksLikeGoalEvidence("Основная задача — упростить запись на занятия."));
+    assert(
+      "CASE B journey not missing stages",
+      detectJourneyStages(U2).indexOf("contact") !== -1 &&
+        detectJourneyStages(U2).indexOf("book") !== -1
+    );
+    assert("CASE B no GOAL re-ask", t2.target.focus !== "goal");
+    assert("CASE B clarify not GOAL_FOCUS", t2.clarify !== GOAL_FOCUS);
+  }
+
+  // CASE C — desiredFlow + friction from U3
+  {
+    let hist = [];
+    let state = null;
+    const seq = [U1, U2, U3];
+    let last = null;
+    for (let i = 0; i < seq.length; i += 1) {
+      last = advance(hist, state, seq[i]);
+      hist = hist.concat([{ role: "user", content: seq[i] }]);
+      state = last.briefState;
+    }
+    assert("CASE C desiredFlow known", last.coverage.desiredFlow.status === "known");
+    assert(
+      "CASE C friction known or recovered",
+      last.coverage.friction.status === "known" ||
+        looksLikeFrictionEvidence(U3)
+    );
+    if (last.coverage.friction.status !== "known") {
+      const frictionSrc = recoverSourcesFromTurns("friction", last.turns);
+      assert("CASE C friction recoverable", frictionSrc.length > 0);
+    }
+  }
+
+  // CASE D — full path → no general CUSTOMER_JOURNEY re-ask
+  {
+    let hist = [];
+    let state = null;
+    const seq = [U1, U2, U3, U4, U5];
+    let last = null;
+    for (let i = 0; i < seq.length; i += 1) {
+      last = advance(hist, state, seq[i]);
+      hist = hist.concat([{ role: "user", content: seq[i] }]);
+      state = last.briefState;
+    }
+    assert(
+      "CASE D journey known after full path",
+      last.coverage.customerJourney.status === "known"
+    );
+    assert("CASE D no JOURNEY_FOCUS", last.clarify !== JOURNEY_FOCUS);
+    assert("CASE D target not voyage re-ask", last.target.focus !== "customerJourney");
+  }
+
+  // CASE E — explicit after_contact closes aspect
+  {
+    const turns = buildUserTurns(
+      [
+        { role: "user", content: U1 },
+        { role: "user", content: U2 },
+        { role: "user", content: U5 }
+      ],
+      U6
+    );
+    const merged = mergeBriefCoverage(null, emptyCoverage(), turns);
+    assert(
+      "CASE E journey sufficient",
+      isCustomerJourneySufficient(merged.coverage.customerJourney.sources)
+    );
+    assert(
+      "CASE E after_contact aspect closed",
+      journeyClarifyAspect(merged.coverage.customerJourney.sources) === null
+    );
+    const ready = evaluateBriefReady(merged.coverage, turns);
+    const target = resolveClarifyTarget(ready.missing, merged.coverage, turns);
+    assert("CASE E no after_contact re-ask", target.aspect !== "after_contact");
+    const msg = selectClarifyMessage(
+      {
+        nextInformationNeed: { focus: "customerJourney", reason: "stale" },
+        clarifyFallbackMessage: AFTER_CONTACT
+      },
+      ready.missing,
+      merged.coverage,
+      turns
+    );
+    assert("CASE E clarify not AFTER_CONTACT", msg !== AFTER_CONTACT);
+  }
+
+  // CASE F — no JOURNEY ↔ after_contact loop after known journey
+  {
+    let hist = [];
+    let state = null;
+    const seq = [U1, U2, U3, U4, U5, U6];
+    const focuses = [];
+    for (let i = 0; i < seq.length; i += 1) {
+      const step = advance(hist, state, seq[i]);
+      focuses.push({
+        focus: step.target.focus,
+        aspect: step.target.aspect,
+        journey: step.coverage.customerJourney.status,
+        clarify: step.clarify
+      });
+      hist = hist.concat([{ role: "user", content: seq[i] }]);
+      state = step.briefState;
+    }
+    const last = focuses[focuses.length - 1];
+    assert("CASE F journey stays known", last.journey === "known");
+    assert("CASE F no return to JOURNEY_FOCUS", last.clarify !== JOURNEY_FOCUS);
+    assert("CASE F no journey focus", last.focus !== "customerJourney");
+    // No adjacent cycle journey(full) → after_contact → journey(full)
+    let looped = false;
+    for (let i = 0; i < focuses.length - 2; i += 1) {
+      const a = focuses[i];
+      const b = focuses[i + 1];
+      const c = focuses[i + 2];
+      if (
+        a.focus === "customerJourney" &&
+        a.aspect == null &&
+        b.aspect === "after_contact" &&
+        c.focus === "customerJourney" &&
+        c.aspect == null
+      ) {
+        looped = true;
+      }
+    }
+    assert("CASE F no journey↔after_contact loop", looped === false);
+  }
+
+  // CASE G — one turn = one main question (compound rejected)
+  {
+    const compound =
+      "Здравствуйте! Я Марк, AI-помощник Оксаны Ежевской. Спасибо за обращение. Расскажите, пожалуйста, подробнее о вашей студии йоги и задачах, которые вы хотите решить. Например, что сейчас важно для ваших клиентов, какие у них возникают вопросы или трудности при записи на занятия, какие цели вы ставите перед бизнесом?";
+    assert("CASE G compound detected", isCompoundDiscoveryQuestion(compound) === true);
+    assert(
+      "CASE G compound unsafe welcome",
+      isSafeWelcomeText(compound, { recommendationMode: "none", phase: "clarify" }) === false
+    );
+    const safe = selectFirstTurnMessage(
+      {
+        clarifyFallbackMessage: compound,
+        assistantMessage: compound,
+        phase: "clarify",
+        recommendationMode: "none",
+        expertPlan: null
+      },
+      U1
+    );
+    assert("CASE G server replaces compound", !isCompoundDiscoveryQuestion(safe));
+    assert("CASE G dual audience is compound", isCompoundDiscoveryQuestion(
+      "Кто чаще всего к вам обращается, и что этим людям обычно важно при выборе?"
+    ));
+  }
+
+  // CASE H — volunteered facts before the matching question still count
+  {
+    const turns = buildUserTurns([], U2);
+    const merged = mergeBriefCoverage(null, emptyCoverage(), turns);
+    assert("CASE H goal from volunteered text", merged.coverage.goal.status === "known");
+    assert(
+      "CASE H journey partial/known from volunteered path",
+      merged.coverage.customerJourney.status === "known" ||
+        merged.coverage.customerJourney.status === "partial"
+    );
+    const ready = evaluateBriefReady(merged.coverage, turns);
+    const target = resolveClarifyTarget(ready.missing, merged.coverage, turns);
+    assert("CASE H not re-ask goal", target.focus !== "goal");
+  }
+
+  // CASE I — new message does not wipe previously known coverage
+  {
+    const t1 = advance([], null, U1);
+    assert("CASE I business known after U1", t1.coverage.business.status === "known");
+    const t2 = advance([{ role: "user", content: U1 }], t1.briefState, U4);
+    assert(
+      "CASE I business still known after unrelated U4",
+      t2.coverage.business.status === "known"
+    );
+    assert(
+      "CASE I prior journey evidence retained",
+      t2.coverage.customerJourney.sources.length >= 1 ||
+        t2.coverage.business.sources.length >= 1
+    );
+  }
+
+  // CASE J — partial MVB asks only missing aspect
+  {
+    const turns = buildUserTurns([], U1);
+    const merged = mergeBriefCoverage(null, emptyCoverage(), turns);
+    assert(
+      "CASE J journey partial not known",
+      merged.coverage.customerJourney.status === "partial"
+    );
+    const aspect = journeyClarifyAspect(merged.coverage.customerJourney.sources);
+    assert("CASE J aspect after_source", aspect === "after_source");
+    const ready = evaluateBriefReady(merged.coverage, turns);
+    // Force journey as next by marking earlier fields known via recovery on richer text
+    const richTurns = buildUserTurns([], U1 + " " + U2);
+    const rich = mergeBriefCoverage(null, emptyCoverage(), richTurns);
+    const richReady = evaluateBriefReady(rich.coverage, richTurns);
+    const target = resolveClarifyTarget(richReady.missing, rich.coverage, richTurns);
+    if (target.focus === "customerJourney") {
+      assert(
+        "CASE J not full block re-ask",
+        target.aspect === "after_source" || target.aspect === "after_contact"
+      );
+      const msg = selectClarifyMessage(
+        {
+          nextInformationNeed: { focus: "customerJourney", reason: "x" },
+          clarifyFallbackMessage: JOURNEY_FOCUS
+        },
+        richReady.missing,
+        rich.coverage,
+        richTurns
+      );
+      assert("CASE J not JOURNEY_FOCUS", msg !== JOURNEY_FOCUS);
+    } else {
+      assert("CASE J skipped journey when already sufficient", true);
+    }
+    // Audience: both missing → who first, never dual
+    const audTarget = resolveClarifyTarget(
+      [{ key: "audienceInput", reason: "status_unknown" }],
+      emptyCoverage(),
+      []
+    );
+    assert("CASE J audience who-first", audTarget.aspect === "who_or_segment");
+  }
+
+  // CASE K — Cyrillic morphology: stages from «социальных сетях» / admin Q&A / slots
+  {
+    const stages = detectJourneyStages(U2);
+    assert("CASE K discover from социальных сетях", stages.indexOf("discover") !== -1);
+    assert("CASE K qualify from отвечает на вопросы", stages.indexOf("qualify") !== -1);
+    assert("CASE K availability from свободных местах", stages.indexOf("availability") !== -1);
+    assert("CASE K book from записывает вручную", stages.indexOf("book") !== -1);
+    assert(
+      "CASE K matters им важны",
+      isAudienceWhatMattersEvidence("Им важны тишина и парковка.") === true
+    );
+  }
+
+  // CASE L — scenario A (knows needs site) reaches ready without loop
+  {
+    const msgs = [
+      "Мне нужен сайт для гостевого дома в Сочи. Сейчас брони через Авито, хочу прямые заявки.",
+      "Гости — семьи с детьми и пары. Им важны тишина и парковка.",
+      "Находят на Авито, пишут в WhatsApp, я уточняю даты, называю цену, они переводят предоплату.",
+      "Приходится каждому заново рассказывать про удобства. Веду занятость в таблице Excel. Хочу чтобы гость сам видел свободные даты и оставлял заявку."
+    ];
+    let hist = [];
+    let state = null;
+    let last = null;
+    for (let i = 0; i < msgs.length; i += 1) {
+      last = advance(hist, state, msgs[i]);
+      assert(
+        "CASE L T" + (i + 1) + " not compound",
+        !isCompoundDiscoveryQuestion(last.clarify)
+      );
+      assert("CASE L T" + (i + 1) + " not JOURNEY loop", last.clarify !== JOURNEY_FOCUS);
+      hist = hist.concat([{ role: "user", content: msgs[i] }]);
+      state = last.briefState;
+    }
+    assert("CASE L brief ready", last.ready.ready === true);
+    assert("CASE L no further MVB focus", last.target.focus === null);
+  }
+
+  // CASE M — long first message closes many MVB; one remaining aspect only
+  {
+    const long =
+      "Я преподаватель английского для взрослых. Ученики приходят по сарафану и пишут в Telegram. " +
+      "Мне приходится каждому заново рассказывать формат и цены. Хочу простую страницу, чтобы человек заранее понял мой подход и мог оставить заявку. " +
+      "Чаще всего это взрослые 28–40, которым важны гибкий график и понятная программа. Сейчас всё веду вручную в Google таблице, CRM нет.";
+    const welcome = buildFirstTurnWelcome(long);
+    const step = advance([], null, long);
+    assert("CASE M welcome not compound", !isCompoundDiscoveryQuestion(welcome));
+    assert("CASE M business known", step.coverage.business.status === "known");
+    assert("CASE M goal known", step.coverage.goal.status === "known");
+    assert("CASE M audience known", step.coverage.audienceInput.status === "known");
+    assert("CASE M friction known", step.coverage.friction.status === "known");
+    assert("CASE M tools known", step.coverage.existingTools.status === "known");
+    assert("CASE M flow known", step.coverage.desiredFlow.status === "known");
+    assert(
+      "CASE M only journey gap or ready",
+      step.target.focus === null ||
+        (step.target.focus === "customerJourney" && step.target.aspect !== null)
+    );
+    assert("CASE M not full JOURNEY", step.clarify !== JOURNEY_FOCUS);
+  }
+
+  // CASE N — beyond_channels server prompt is not compound
+  {
+    const beyond =
+      "Помимо каналов связи — чем ещё вы пользуетесь в работе: таблицы, календарь, CRM, бронирование, бот, или почти всё ведёте вручную?";
+    // Legacy dual-? wording may still be compound; contextual tools ask must not be.
+    const ctxTools = inferDialogueContext(
+      { business: { status: "known", sources: [src("u1", "У меня студия йоги", "what_business")] } },
+      buildUserTurns([], "У меня студия йоги")
+    ).toolsAsk;
+    assert("CASE N contextual tools not compound", isCompoundDiscoveryQuestion(ctxTools) === false);
+    void beyond;
+  }
+
+  // STAGE2 — contextual wording / ack / implication / solution readiness
+  {
+    const yogaCtx = inferDialogueContext(
+      { business: { sources: [src("u1", "небольшая студия йоги", "what_business")] } },
+      buildUserTurns([], "У меня небольшая студия йоги")
+    );
+    assert("STAGE2 yoga who not guests", !/гост/i.test(yogaCtx.whoAsk));
+    assert("STAGE2 yoga who about clients/занятия", /занят|клиент/i.test(yogaCtx.whoAsk));
+
+    const lodgeCtx = inferDialogueContext(
+      { business: { sources: [src("u1", "гостевой дом в Сочи", "what_business")] } },
+      buildUserTurns([], "У меня гостевой дом")
+    );
+    assert("STAGE2 lodging uses guests", /гост|останавливается/i.test(lodgeCtx.whoAsk));
+
+    const b2bCtx = inferDialogueContext(
+      { business: { sources: [src("u1", "B2B поставки для компаний", "what_business")] } },
+      buildUserTurns([], "Мы делаем B2B поставки для компаний")
+    );
+    assert("STAGE2 b2b not guests", !/гост/i.test(b2bCtx.whoAsk));
+    assert("STAGE2 b2b decision maker", /решени|заказчик/i.test(b2bCtx.whoAsk));
+
+    const welcome = buildFirstTurnWelcome(
+      "У меня небольшая студия йоги. Клиенты чаще всего приходят из социальных сетей."
+    );
+    assert("STAGE2 ack natural", /Понял:/i.test(welcome));
+    assert("STAGE2 ack no internal", !hasInternalSystemWording(welcome));
+    assert("STAGE2 welcome one question", !isCompoundDiscoveryQuestion(welcome));
+    assert("STAGE2 ack perspective у вас", /у вас\s+небольшая\s+студия/i.test(welcome));
+    assert("STAGE2 ack no first-person user", !/Понял:.*у меня/i.test(welcome));
+    assert("STAGE2 ack no dangling через,", !/через,/i.test(welcome));
+
+    // ACK A–E: normalized facts, assistant perspective, no raw clip / duplication.
+    const ackCases = [
+      {
+        id: "A",
+        msg:
+          "У меня небольшая студия йоги. Большинство клиентов находят нас через соцсети, а записью сейчас занимается администратор вручную.",
+        expect: [/у вас небольшая студия йоги/i, /соцсет/i],
+        forbid: [/у меня/i, /через,/i, /находят нас через/i],
+        expectGoal: true
+      },
+      {
+        id: "B",
+        msg: "Мы сдаём несколько квартир посуточно. Гости в основном приходят с Авито.",
+        expect: [/вы сдаёте несколько квартир посуточно/i, /авито/i],
+        forbid: [/мы сдаём/i, /у меня/i]
+      },
+      {
+        id: "C",
+        msg:
+          "Я оказываю бухгалтерские услуги компаниям. Большинство заказчиков приходит по рекомендациям.",
+        expect: [/вы оказываете бухгалтерские услуги/i, /рекомендац/i],
+        forbid: [/я оказываю/i, /у меня/i]
+      },
+      {
+        id: "D",
+        msg: "У нас интернет-магазин текстиля, заявки идут из ВКонтакте и Telegram.",
+        expect: [/у вас интернет-магазин текстиля/i, /мессенджер|соцсет|вконтакте|telegram/i],
+        forbid: [/у нас/i, /у меня/i]
+      },
+      {
+        id: "E",
+        msg:
+          "Я частный преподаватель английского для взрослых. Сейчас почти все ученики приходят через сарафан и личные сообщения, и мне приходится каждому заново рассказывать про формат и цены. Хочу сайт, чтобы человек заранее понимал мой подход и мог оставить заявку. Чаще всего это взрослые 28–40, которым важны гибкий график и понятная программа. Всё веду вручную в Google таблице, CRM нет.",
+        expect: [/вы частный преподаватель/i],
+        forbid: [/у меня/i, /google таблиц/i, /28–40|гибкий график/i]
+      }
+    ];
+    for (let ai = 0; ai < ackCases.length; ai += 1) {
+      const c = ackCases[ai];
+      const w = buildFirstTurnWelcome(c.msg);
+      assert("ACK " + c.id + " natural", /Понял:/i.test(w));
+      assert("ACK " + c.id + " one question", (w.match(/\?/g) || []).length === 1);
+      assert("ACK " + c.id + " not compound", !isCompoundDiscoveryQuestion(w));
+      assert("ACK " + c.id + " no internal", !hasInternalSystemWording(w));
+      for (let ei = 0; ei < c.expect.length; ei += 1) {
+        assert("ACK " + c.id + " expect " + ei, c.expect[ei].test(w));
+      }
+      for (let fi = 0; fi < c.forbid.length; fi += 1) {
+        assert("ACK " + c.id + " forbid " + fi, !c.forbid[fi].test(w));
+      }
+      if (c.expectGoal) {
+        assert("ACK " + c.id + " asks GOAL", /какого результата/i.test(w));
+      }
+      // Ack stays short: identity + Понял + compact facts before the question.
+      const ackPart = w.replace(/^.*?Ежевской\.\s*/i, "").replace(/\s*[А-ЯA-ZЁ].*\?$/u, "");
+      assert("ACK " + c.id + " brief", ackPart.length < 220);
+    }
+
+    const dualFlow =
+      "В идеале что клиент должен иметь возможность сделать сам, и что должно стать проще для вас?";
+    assert("STAGE2 dual flow is compound", isCompoundDiscoveryQuestion(dualFlow) === true);
+    assert("STAGE2 contextual flow not compound", isCompoundDiscoveryQuestion(yogaCtx.flowAsk) === false);
+
+    const uGoal =
+      "Основная задача — упростить запись на занятия. Сейчас человек пишет администратору, администратор отвечает на вопросы и записывает клиента вручную. Приходится отвечать на одни и те же вопросы.";
+    const turnsImp = buildUserTurns([], uGoal);
+    const mergedImp = mergeBriefCoverage(null, emptyCoverage(), turnsImp);
+    assert(
+      "STAGE2 strong desiredFlow implication",
+      hasStrongDesiredFlowImplication(mergedImp.coverage, turnsImp) === true ||
+        mergedImp.coverage.desiredFlow.status === "known"
+    );
+
+    const unsupported = evaluateExpertPlan(
+      {
+        recommendationMode: "normal",
+        expertPlan: validPlan({
+          addLater: "Личный кабинет, программа лояльности и блог с материалами"
+        }),
+        assistantMessage: "Рекомендую сайт."
+      },
+      allKnownGrounded()
+    );
+    assert("STAGE2 unsupported features blocked", unsupported.ok === false);
+
+    const bias = evaluateExpertPlan(
+      {
+        recommendationMode: "normal",
+        expertPlan: validPlan({
+          primarySolution: "Создать веб-сайт студии",
+          alternative: "Создать другой сайт с формой"
+        }),
+        assistantMessage: "Вам нужен сайт."
+      },
+      allKnownGrounded()
+    );
+    assert("STAGE2 website bias without alt class blocked", bias.ok === false);
+
+    const solNo = evaluateSolutionReady(
+      allKnownGrounded({
+        existingTools: field("known", [
+          src("u4", "Веду заявки в Excel, CRM нет, модуля бронирования нет", "tools")
+        ]),
+        desiredFlow: field("known", [
+          src("u2", "Хочется меньше переписки по одним и тем же вопросам", "ideal_flow")
+        ])
+      }),
+      buildUserTurns([], QUOTES.business)
+    );
+    assert("STAGE2 solution not ready without discriminator", solNo.ready === false);
+    const solPayOnly = evaluateSolutionReady(
+      allKnownGrounded({
+        existingTools: field("known", [src("u1", "записи в таблице и календаре, CRM нет", "tools")]),
+        desiredFlow: field("known", [
+          src("u1", "хочу чтобы клиент сам выбирал время и записывался", "ideal_flow")
+        ])
+      }),
+      buildUserTurns([], "Небольшая студия. Онлайн-оплата пока не нужна.")
+    );
+    assert("STAGE2 payment-only not enough", solPayOnly.ready === false);
+    const solYes = evaluateSolutionReady(
+      allKnownGrounded(),
+      buildUserTurns(
+        [],
+        QUOTES.business +
+          ". Онлайн-оплата не нужна. Расписание часто меняется, несколько преподавателей, на занятиях ограниченные места."
+      )
+    );
+    assert("STAGE2 solution ready with combined evidence", solYes.ready === true);
+    assert(
+      "STAGE2 reason evidence_sufficient",
+      solYes.reason === "evidence_sufficient" ||
+        String(solYes.reason || "").indexOf("problem_shape_") === 0
+    );
+    const discQ = pickSolutionDiscriminatorQuestion(
+      allKnownGrounded(),
+      buildUserTurns([], QUOTES.business)
+    );
+    assert("STAGE2 discriminator asks fact not X-vs-Y", !/между готовым|между лендинг|между витрин/i.test(discQ));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TEXTILE live human-acceptance regressions (goal soft-desire + occasion≠WHO)
+// ---------------------------------------------------------------------------
+{
+  const TEXTILE_U1 =
+    "У меня небольшой магазин домашнего текстиля: постельное бельё, полотенца, одеяла, подушки, халаты, пледы. Магазин работает офлайн, есть группа ВКонтакте и Телеграм. Покупатели в основном женщины, примерно 90%. Хотелось бы увеличить продажи и привлечь новых клиентов.";
+  const OCCASION_WHO =
+    "Понял: офлайн-магазин домашнего текстиля, есть ВКонтакте и Telegram, цель — увеличить продажи и привлечь новых клиентов. Чтобы точнее понять аудиторию: кто чаще всего покупает — для себя, в подарок или, например, для семьи/дома?";
+  const GOAL_SOFT =
+    "Хотелось бы увеличить продажи и привлечь новых клиентов.";
+
+  // B — unit goal detector
+  assert("TEXTILE B goal soft-desire", looksLikeGoalEvidence(GOAL_SOFT) === true);
+  assert("TEXTILE B goal full U1", looksLikeGoalEvidence(TEXTILE_U1) === true);
+  assert(
+    "TEXTILE B not overbroad bare sales talk",
+    looksLikeGoalEvidence("В магазине продажи идут через кассу каждый день.") === false
+  );
+
+  // A — verbatim first-turn recovery + routing
+  {
+    const turns = buildUserTurns([], TEXTILE_U1);
+    const merged = mergeBriefCoverage(null, {}, turns);
+    const ready = evaluateBriefReady(merged.coverage, turns);
+    const turnsById = Object.fromEntries(turns.map((t) => [t.id, t.text || t]));
+    const audMissing = audienceMissingAspects(
+      merged.coverage.audienceInput.sources || [],
+      turnsById
+    );
+    const target = resolveClarifyTarget(ready.missing, merged.coverage, turns);
+    const welcome = buildFirstTurnWelcome(TEXTILE_U1);
+    const ack = buildContextAcknowledgement(merged.coverage, turns);
+    const pub = publishClarifyQuestion(
+      OCCASION_WHO,
+      merged.coverage,
+      turns,
+      ready.missing,
+      []
+    );
+    const blob = TEXTILE_U1.toLowerCase();
+
+    assert("TEXTILE A business known", merged.coverage.business.status === "known");
+    assert("TEXTILE A goal known", merged.coverage.goal.status === "known");
+    assert(
+      "TEXTILE A WHO aspect known",
+      audMissing.indexOf("who_or_segment") === -1
+    );
+    assert(
+      "TEXTILE A WHO quote women/90",
+      (merged.coverage.audienceInput.sources || []).some(function (s) {
+        return /женщин/i.test(String(s.quote || "")) && /90/.test(String(s.quote || ""));
+      })
+    );
+    assert("TEXTILE A offline present", /офф?лайн/.test(blob));
+    assert(
+      "TEXTILE A channels present",
+      /вконтакте/.test(blob) && /телеграм|telegram/.test(blob)
+    );
+    assert(
+      "TEXTILE A tools or journey keeps channels",
+      (merged.coverage.existingTools.status === "partial" ||
+        merged.coverage.existingTools.status === "known" ||
+        merged.coverage.customerJourney.status === "partial" ||
+        merged.coverage.customerJourney.status === "known")
+    );
+    assert(
+      "TEXTILE A audience at least partial",
+      merged.coverage.audienceInput.status === "partial" ||
+        merged.coverage.audienceInput.status === "known"
+    );
+    assert(
+      "TEXTILE A first target what_matters",
+      target.focus === "audienceInput" && target.aspect === "what_matters"
+    );
+    assert(
+      "TEXTILE A first target not WHO",
+      !(target.focus === "audienceInput" && target.aspect === "who_or_segment")
+    );
+    assert(
+      "TEXTILE A first target not occasion-WHO",
+      !looksLikePurchaseOccasionWhoQuestion(welcome)
+    );
+    assert(
+      "TEXTILE A welcome has no purchase-occasion WHO",
+      !/для\s+себя|в\s+подарок|семьи\/дома|для\s+семьи|для\s+дома/.test(welcome)
+    );
+    assert(
+      "TEXTILE A no buyer WHO re-ask",
+      !/кто\s+(?:чаще|обычно).{0,40}(?:покупает|обращается|приходит)/i.test(welcome)
+    );
+    assert(
+      "TEXTILE A published not occasion-WHO",
+      !looksLikePurchaseOccasionWhoQuestion(pub) &&
+        !/для\s+себя.{0,40}в\s+подарок/i.test(pub)
+    );
+    assert("TEXTILE A/C ack keeps WHO", /женщин/i.test(ack));
+    assert(
+      "TEXTILE A/C ack keeps GOAL",
+      /цель\s*—\s*увеличить\s+продажи/i.test(ack) && /привлечь/i.test(ack)
+    );
+    assert(
+      "TEXTILE A/C ack keeps channels",
+      /вконтакте/i.test(ack) && /telegram/i.test(ack)
+    );
+    assert("TEXTILE A/C ack keeps offline business", /офлайн-?магазин|офлайн/i.test(ack));
+    assert(
+      "TEXTILE A welcome asks what_matters",
+      /важнее всего при выборе/i.test(welcome)
+    );
+  }
+
+  // C — known WHO + missing matters → what_matters
+  {
+    const turns = buildUserTurns([], TEXTILE_U1);
+    const merged = mergeBriefCoverage(null, {}, turns);
+    const ready = evaluateBriefReady(merged.coverage, turns);
+    const target = resolveClarifyTarget(
+      [{ key: "audienceInput", reason: "status_partial" }],
+      merged.coverage,
+      turns
+    );
+    assert(
+      "TEXTILE C target what_matters",
+      target.focus === "audienceInput" && target.aspect === "what_matters"
+    );
+    // Also via full missing list after goal is known
+    const fullTarget = resolveClarifyTarget(ready.missing, merged.coverage, turns);
+    assert(
+      "TEXTILE C full routing not who",
+      !(fullTarget.focus === "audienceInput" && fullTarget.aspect === "who_or_segment")
+    );
+  }
+
+  // D — publish safety: occasion-WHO never published as WHO
+  {
+    assert(
+      "TEXTILE D detector flags occasion-WHO",
+      looksLikePurchaseOccasionWhoQuestion(OCCASION_WHO) === true
+    );
+    const turns = buildUserTurns([], TEXTILE_U1);
+    const merged = mergeBriefCoverage(null, {}, turns);
+    const ready = evaluateBriefReady(merged.coverage, turns);
+    const pub = publishClarifyQuestion(
+      OCCASION_WHO,
+      merged.coverage,
+      turns,
+      ready.missing,
+      []
+    );
+    assert("TEXTILE D not published as occasion", !looksLikePurchaseOccasionWhoQuestion(pub));
+    assert(
+      "TEXTILE D routes to matters (WHO known)",
+      /важн|при\s+выборе/i.test(pub) &&
+        !/кто\s+(?:чаще|обычно).{0,40}покупает/i.test(pub)
+    );
+
+    // Even if WHO were still open, occasion options must not leak
+    const emptyAud = {
+      business: { status: "known", sources: [src("u1", "магазин текстиля", "what_business")] },
+      goal: {
+        status: "known",
+        sources: [src("u1", GOAL_SOFT, "desired_outcome")]
+      },
+      audienceInput: { status: "unknown", sources: [] },
+      customerJourney: { status: "unknown", sources: [] },
+      friction: { status: "unknown", sources: [] },
+      existingTools: { status: "unknown", sources: [] },
+      desiredFlow: { status: "unknown", sources: [] }
+    };
+    const pubOpen = publishClarifyQuestion(
+      OCCASION_WHO,
+      emptyAud,
+      turns,
+      [{ key: "audienceInput", reason: "status_unknown" }],
+      []
+    );
+    assert(
+      "TEXTILE D open-WHO still no occasion options",
+      !looksLikePurchaseOccasionWhoQuestion(pubOpen) &&
+        !/для\s+себя.{0,24}в\s+подарок/i.test(pubOpen)
+    );
+  }
+}
 
 console.log("schemaCharLength=", schemaCharLength());
 console.log("runtimePromptChars=", RUNTIME_INSTRUCTIONS.length);

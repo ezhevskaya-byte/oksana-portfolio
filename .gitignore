@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+
+# Wrangler / Cloudflare local files
+.wrangler/
+
+# Logs
+*.log
+
+# Temporary files
+tmp-*.txt
+*_out.txt
+*_stdout*.txt
+*_stderr*.txt
+
+# Local test/debug artifacts
+smart-brief-worker/scripts/_*.txt
+smart-brief-worker/scripts/_*.json
+
+# Archives and local backups
+*.zip
+_regru-backup/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+
+!.dev.vars.example
+smart-brief-worker/scripts/stt-smoke-record.html
+!smart-brief-worker/scripts/stt-smoke-record.html

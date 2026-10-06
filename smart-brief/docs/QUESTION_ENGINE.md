@@ -314,6 +314,18 @@ Critical: BUSINESS, GOAL, AUDIENCE_INPUT, CUSTOMER_JOURNEY, FRICTION, EXISTING_T
 `partial` / `unknown` = NOT READY для normal recommend.
 Evidence обязателен для `known`. Internal fields никогда не отдаются frontend.
 
+> **MVB defines required knowledge, not a mandatory question sequence.**
+
+Правило уточнений по статусу блока:
+
+| Status | Clarify |
+|--------|---------|
+| **KNOWN** | Вопрос по блоку не задаём (NO-REPEAT). |
+| **PARTIAL** | Спрашиваем только недостающий aspect / stage, без полного compound-шаблона, повторяющего уже известное. |
+| **UNKNOWN** | Допустим полный focus-вопрос по блоку. |
+
+Примеры partial: для `audienceInput` — только WHO или только WHAT_MATTERS; для `customerJourney` — известен канал, но не продолжение пути; для `existingTools` — известны каналы связи, но не operational inventory; для `desiredFlow` — известна боль/цель, но не идеальное действие клиента.
+
 ### Minimum Viable Brief (смысловые блоки ≠ анкета)
 
 1. **BUSINESS** — бизнес / предложение / существенные особенности

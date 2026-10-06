@@ -92,58 +92,44 @@
           <a class="back-link sb-back" href="/">← Вернуться в портфолио</a>
 
           <div class="sb-stage" data-sb-stage="intro">
-            <p class="eyebrow">Предварительная концепция проекта</p>
-            <h1 id="sb-title">Расскажите о своей задаче</h1>
-            <p class="sb-lead">
-              Не обязательно знать, какой именно сайт, приложение или сервис вам нужен.
-              Расскажите своими словами, что у вас за бизнес, что хотелось бы изменить и какого результата вы ждёте.
+            <h1 id="sb-title" class="sr-only">Расскажите, с чем вы пришли</h1>
+            <p class="sr-only">
+              Приветствую! Я Марк — AI-помощник Оксаны Ежевской.
+              Можно рассказать голосом или просто написать своими словами.
             </p>
+            <p class="sr-only"><span id="sb-mode-speak-note">до 28 секунд</span></p>
 
-            <p class="sb-accent">
-              <span class="sb-accent__label">Не хотите заполнять длинный бриф?</span>
-              <span class="sb-accent__text">Просто расскажите о своей задаче.</span>
-            </p>
-
-            <p class="sb-prompt">Как вам удобнее?</p>
-
-            <div class="sb-modes" role="group" aria-label="Способ рассказать о задаче">
-              <button
-                class="sb-mode"
-                type="button"
-                data-sb-mode="speak"
-                aria-describedby="sb-mode-speak-note"
+            <div class="sb-welcome-visual">
+              <img
+                class="sb-welcome-visual__img"
+                src="/images/smart-brief-welcome-layout.png"
+                alt="Марк — AI-помощник Оксаны Ежевской. Smart Brief: расскажите, с чем вы пришли — голосом до 28 секунд или письменно."
+                width="1672"
+                height="941"
+                decoding="async"
+                fetchpriority="high"
               >
-                <span class="sb-mode__icon" aria-hidden="true">
-                  <svg class="sb-mode__svg" viewBox="0 0 24 24" width="28" height="28" fill="none" focusable="false">
-                    <path d="M12 3.5a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0v-5a3 3 0 0 0-3-3Z" stroke="currentColor" stroke-width="1.6"/>
-                    <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                    <path d="M12 17v3.5M9 20.5h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                  </svg>
-                </span>
-                <span class="sb-mode__title">Рассказать</span>
-                <span class="sb-mode__meta" id="sb-mode-speak-note">Около 2 минут</span>
-              </button>
 
-              <button
-                class="sb-mode"
-                type="button"
-                data-sb-mode="write"
-                aria-describedby="sb-mode-write-note"
-              >
-                <span class="sb-mode__icon" aria-hidden="true">
-                  <svg class="sb-mode__svg" viewBox="0 0 24 24" width="28" height="28" fill="none" focusable="false">
-                    <path d="M4.5 18.5h15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                    <path d="M14.8 4.8 18.2 8.2 9.1 17.3H5.7v-3.4L14.8 4.8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                  </svg>
-                </span>
-                <span class="sb-mode__title">Написать</span>
-                <span class="sb-mode__meta" id="sb-mode-write-note">В свободной форме</span>
-              </button>
+              <div class="sb-welcome-hotspots" role="group" aria-label="Способ рассказать о задаче">
+                <button
+                  class="sb-welcome-hotspot sb-welcome-hotspot--speak"
+                  type="button"
+                  data-sb-mode="speak"
+                  aria-label="Рассказать о задаче голосом"
+                  aria-describedby="sb-mode-speak-note"
+                >
+                  <span class="sb-welcome-hotspot__label">Рассказать голосом</span>
+                </button>
+                <button
+                  class="sb-welcome-hotspot sb-welcome-hotspot--write"
+                  type="button"
+                  data-sb-mode="write"
+                  aria-label="Написать о задаче"
+                >
+                  <span class="sb-welcome-hotspot__label">Написать</span>
+                </button>
+              </div>
             </div>
-
-            <p class="sb-outcome">
-              Сначала — ваша персональная концепция. Контакты попрошу только если вы захотите передать её Оксане.
-            </p>
           </div>
 
           <div class="sb-stage" data-sb-stage="write" hidden>
@@ -155,24 +141,40 @@
 
             <label class="sb-field" for="sb-brief-text">
               <span class="sr-only">Описание проекта</span>
-              <textarea
-                class="sb-textarea"
-                id="sb-brief-text"
-                name="brief"
-                rows="8"
-                aria-invalid="false"
-                aria-describedby="sb-start-tip sb-write-hint"
-                placeholder="Напишите своими словами о бизнесе и задаче…"
-              ></textarea>
+              <div class="sb-field__control">
+                <textarea
+                  class="sb-textarea"
+                  id="sb-brief-text"
+                  name="brief"
+                  rows="8"
+                  aria-invalid="false"
+                  aria-describedby="sb-start-tip sb-write-hint sb-voice-status-write"
+                  placeholder="Напишите своими словами о бизнесе и задаче…"
+                ></textarea>
+                <button
+                  class="sb-mic"
+                  type="button"
+                  data-sb-mic="brief"
+                  aria-controls="sb-brief-text"
+                  aria-describedby="sb-voice-status-write"
+                  aria-pressed="false"
+                  aria-label="Голосовой ввод для описания проекта"
+                  title="Голосовой ввод"
+                >
+                  <svg class="sb-mic__icon" viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true" focusable="false">
+                    <path d="M12 3.5a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0v-5a3 3 0 0 0-3-3Z" stroke="currentColor" stroke-width="1.6"/>
+                    <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    <path d="M12 17v3.5M9 20.5h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                  </svg>
+                </button>
+              </div>
             </label>
+            <p class="sb-voice-status" id="sb-voice-status-write" data-sb-voice-status="brief" role="status" aria-live="polite" hidden></p>
 
             <aside class="sb-start-tip" id="sb-start-tip">
-              <p class="sb-start-tip__title">Не знаете, с чего начать?</p>
-              <p class="sb-start-tip__text">
-                Расскажите своими словами о вашем бизнесе: чем занимаетесь, где работаете, кто чаще всего к вам обращается, как сейчас находят вас клиенты и что хотелось бы улучшить. Необязательно отвечать на всё — начните с того, что считаете важным.
-              </p>
+              <p class="sb-start-tip__title">Например, можно начать так</p>
               <p class="sb-start-tip__example">
-                Например: «У меня небольшая студия цветов в Краснодаре. Чаще покупают подарки, клиенты приходят из соцсетей и по рекомендациям. Хочу увеличить количество заказов и меньше времени тратить на переписку.»
+                «У меня небольшая студия цветов в Краснодаре. Чаще покупают подарки, клиенты приходят из соцсетей и по рекомендациям. Хочу увеличить количество заказов и меньше времени тратить на переписку.»
               </p>
             </aside>
 
@@ -205,15 +207,35 @@
 
             <label class="sb-field" for="sb-reply-text">
               <span class="sr-only">Ваш ответ</span>
-              <textarea
-                class="sb-textarea sb-textarea--reply"
-                id="sb-reply-text"
-                name="reply"
-                rows="4"
-                aria-invalid="false"
-                placeholder="Можете ответить своими словами…"
-              ></textarea>
+              <div class="sb-field__control">
+                <textarea
+                  class="sb-textarea sb-textarea--reply"
+                  id="sb-reply-text"
+                  name="reply"
+                  rows="4"
+                  aria-invalid="false"
+                  aria-describedby="sb-voice-status-reply"
+                  placeholder="Можете ответить своими словами…"
+                ></textarea>
+                <button
+                  class="sb-mic"
+                  type="button"
+                  data-sb-mic="reply"
+                  aria-controls="sb-reply-text"
+                  aria-describedby="sb-voice-status-reply"
+                  aria-pressed="false"
+                  aria-label="Голосовой ввод для ответа"
+                  title="Голосовой ввод"
+                >
+                  <svg class="sb-mic__icon" viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true" focusable="false">
+                    <path d="M12 3.5a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0v-5a3 3 0 0 0-3-3Z" stroke="currentColor" stroke-width="1.6"/>
+                    <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    <path d="M12 17v3.5M9 20.5h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                  </svg>
+                </button>
+              </div>
             </label>
+            <p class="sb-voice-status" id="sb-voice-status-reply" data-sb-voice-status="reply" role="status" aria-live="polite" hidden></p>
 
             <div class="sb-actions">
               <button class="btn btn-primary" type="button" data-sb-send-reply>
@@ -247,6 +269,14 @@
             return "https://smart-brief-api-test.ezhevskaya.workers.dev/api/chat";
           }
           return "https://smart-brief-api.ezhevskaya.workers.dev/api/chat";
+        })(),
+        // Voice Input V1: localhost → test STT; production host → production STT.
+        transcribeUrl: (function () {
+          var host = window.location.hostname;
+          if (host === "127.0.0.1" || host === "localhost") {
+            return "https://smart-brief-api-test.ezhevskaya.workers.dev/api/transcribe";
+          }
+          return "https://smart-brief-api.ezhevskaya.workers.dev/api/transcribe";
         })()
       };
     </script>

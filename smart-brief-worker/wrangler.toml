@@ -6,6 +6,7 @@ compatibility_date = "2026-03-01"
 #   wrangler secret put OPENAI_API_KEY --name smart-brief-api
 #   wrangler secret put YANDEX_API_KEY --name smart-brief-api
 #   wrangler secret put YANDEX_API_KEY --name smart-brief-api-test
+#   wrangler secret put YANDEX_SPEECHKIT_API_KEY --name smart-brief-api-test
 #
 # Deploy (do NOT use bare `wrangler deploy` for provider switches):
 #   npm run deploy:test     → smart-brief-api-test  (Yandex)

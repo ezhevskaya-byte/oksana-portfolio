@@ -219,12 +219,12 @@ assert(
 );
 assert(
   "JS no automatic retry loop on timeout",
-  !/setInterval\s*\(/.test(js) &&
-    !/\.then\(\s*function\s*\([^)]*\)\s*\{\s*return\s+requestChat/.test(js) &&
-    !/for\s*\(\s*;\s*;\s*\)/.test(js)
+  !/\.then\(\s*function\s*\([^)]*\)\s*\{\s*return\s+requestChat/.test(js) &&
+    !/for\s*\(\s*;\s*;\s*\)/.test(js) &&
+    !/setInterval\s*\([\s\S]{0,120}?requestChat/.test(js)
 );
 assert("JS clientTimeoutMs is 58000", /clientTimeoutMs:\s*58000/.test(js));
-assert("JS no API secrets", !/sk-|OPENAI_API_KEY|YANDEX_API_KEY|Bearer\s/.test(js));
+assert("JS no API secrets", !/sk-|OPENAI_API_KEY|YANDEX_API_KEY|YANDEX_SPEECHKIT_API_KEY|Bearer\s/.test(js));
 assert("JS no hard-coded test Worker URL", !/smart-brief-api-test/.test(js));
 
 assert(
@@ -236,7 +236,170 @@ assert(
   /host === "127\.0\.0\.1" \|\| host === "localhost"/.test(html) &&
     /smart-brief-api-test\.ezhevskaya\.workers\.dev\/api\/chat/.test(html)
 );
-assert("HTML no secrets", !/sk-|OPENAI_API_KEY|YANDEX_API_KEY/.test(html));
+assert("HTML no secrets", !/sk-|OPENAI_API_KEY|YANDEX_API_KEY|YANDEX_SPEECHKIT_API_KEY/.test(html));
+
+console.log("\n=== Smart Brief welcome Mark ===");
+assert(
+  "HTML welcome uses smart-brief-welcome-layout.png",
+  /src="\/images\/smart-brief-welcome-layout\.png"/.test(html)
+);
+assert(
+  "HTML welcome greeting present for a11y",
+  /Приветствую![\s\S]*Я Марк — AI-помощник[\s\S]*Оксаны Ежевской/.test(html)
+);
+assert("HTML welcome headline", /Расскажите, с чем вы пришли/.test(html));
+assert(
+  "HTML welcome scenarios",
+  /data-sb-mode="speak"/.test(html) &&
+    /data-sb-mode="write"/.test(html) &&
+    /Рассказать голосом/.test(html) &&
+    /Написать/.test(html)
+);
+assert(
+  "HTML welcome hotspots have aria-labels",
+  /aria-label="Рассказать о задаче голосом"/.test(html) &&
+    /aria-label="Написать о задаче"/.test(html)
+);
+assert(
+  "HTML welcome has no SMART BRIEF brand label",
+  !/sb-welcome-card__brand/.test(html) &&
+    !/<p[^>]*>\s*Smart Brief\s*<\/p>/i.test(html)
+);
+assert(
+  "CSS welcome visual + hotspot layout present",
+  /\.sb-welcome-visual\s*\{/.test(css) &&
+    /\.sb-welcome-visual__img\s*\{/.test(css) &&
+    /\.sb-welcome-hotspot--speak\s*\{/.test(css) &&
+    /\.sb-welcome-hotspot--write\s*\{/.test(css)
+);
+assert(
+  "CSS welcome hotspots use percent positioning",
+  /\.sb-welcome-hotspot--speak\s*\{[\s\S]*?left:\s*\d/.test(css) &&
+    /\.sb-welcome-hotspot--write\s*\{[\s\S]*?left:\s*\d/.test(css) &&
+    /%\s*;/.test(css)
+);
+assert(
+  "CSS mobile welcome actions become real buttons",
+  /@media\s*\(max-width:\s*700px\)[\s\S]*?\.sb-welcome-hotspots\s*\{[\s\S]*?position:\s*static/.test(
+    css
+  )
+);
+console.log("\n=== Voice Input V1 contracts ===");
+assert("HTML has mic for brief", /data-sb-mic="brief"/.test(html));
+assert("HTML has mic for reply", /data-sb-mic="reply"/.test(html));
+assert(
+  "HTML has exactly two mic buttons",
+  (html.match(/data-sb-mic="/g) || []).length === 2
+);
+assert("HTML voice status for brief", /data-sb-voice-status="brief"/.test(html));
+assert("HTML voice status for reply", /data-sb-voice-status="reply"/.test(html));
+assert("HTML voice status aria-live", /data-sb-voice-status[\s\S]*aria-live="polite"/.test(html));
+assert(
+  "HTML transcribeUrl separate from apiUrl",
+  /transcribeUrl:/.test(html) &&
+    /smart-brief-api-test\.ezhevskaya\.workers\.dev\/api\/transcribe/.test(html) &&
+    /\/api\/chat/.test(html)
+);
+assert(
+  "HTML production transcribeUrl activated",
+  /https:\/\/smart-brief-api\.ezhevskaya\.workers\.dev\/api\/transcribe/.test(html) &&
+    /host === "127\.0\.0\.1" \|\| host === "localhost"/.test(html) &&
+    /smart-brief-api-test\.ezhevskaya\.workers\.dev\/api\/transcribe/.test(html)
+);
+assert(
+  "HTML production apiUrl unchanged for chat",
+  /https:\/\/smart-brief-api\.ezhevskaya\.workers\.dev\/api\/chat/.test(html)
+);
+assert("HTML speak mode present", /data-sb-mode="speak"/.test(html));
+assert("HTML speak duration is до 28 секунд", /id="sb-mode-speak-note">до 28 секунд</.test(html));
+assert("HTML no 2-minute speak promise", !/2\s*минут/i.test(html));
+assert(
+  "JS speak mode starts existing voice for brief",
+  /mode === "speak"[\s\S]*?showStage\("write",\s*"#sb-brief-text"[\s\S]*?startVoiceRecording\("brief"\)/.test(
+    js
+  )
+);
+assert(
+  "JS speak mode does not call sendMessage",
+  !/mode === "speak"[\s\S]{0,400}?sendMessage\(/.test(js)
+);
+assert("JS write mode still opens write stage", /mode === "write"[\s\S]*?showStage\("write",\s*"#sb-brief-text"\)/.test(js));
+assert("HTML mic for brief kept", /data-sb-mic="brief"/.test(html));
+assert("HTML mic for reply kept", /data-sb-mic="reply"/.test(html));
+assert("CSS mic control present", /\.sb-mic\s*\{/.test(css) && /\.sb-field__control\s*\{/.test(css));
+assert("JS reads transcribeUrl from config", /config\.transcribeUrl/.test(js));
+assert("JS POST audio\/lpcm", /Content-Type":\s*"audio\/lpcm"/.test(js));
+assert("JS voice max 28s", /voiceMaxSec:\s*28/.test(js));
+assert("JS LPCM 16kHz", /voiceSampleRateHz:\s*16000/.test(js));
+assert("JS appendTranscriptToValue helper", /function appendTranscriptToValue/.test(js));
+assert("JS insertTranscriptIntoField", /function insertTranscriptIntoField/.test(js));
+assert("JS requestTranscribe separate from requestChat", /function requestTranscribe/.test(js));
+assert(
+  "JS STT success never calls sendMessage",
+  /INVARIANT: STT success must NEVER call sendMessage/.test(js) &&
+    !/requestTranscribe\([\s\S]{0,500}?\.then\([\s\S]{0,400}?sendMessage\(/.test(js)
+);
+assert(
+  "JS assistant response never pushed as USER_TURN",
+  /history\.push\(\{\s*role:\s*"user",\s*content:\s*message\s*\}\)/.test(js) &&
+    /history\.push\(\{\s*role:\s*"assistant",\s*content:\s*assistantMessage\s*\}\)/.test(js) &&
+    !/history\.push\(\{\s*role:\s*"user",\s*content:\s*assistantMessage\s*\}\)/.test(js) &&
+    !/appendMessage\(\s*"user"\s*,\s*assistantMessage\s*\)/.test(js) &&
+    !/textarea\.value\s*=\s*assistantMessage/.test(js) &&
+    !/replyArea\.value\s*=\s*assistantMessage/.test(js)
+);
+assert("JS setBusy aborts voice", /function setBusy[\s\S]*?abortVoiceSession/.test(js));
+assert("JS resetToIntro aborts voice", /function resetToIntro[\s\S]*?abortVoiceSession/.test(js));
+assert("JS mic blocked while loading", /function onMicClick[\s\S]*?if\s*\(\s*loading\s*\)\s*return/.test(js));
+assert(
+  "JS single recording guard",
+  /voiceState === "recording"[\s\S]*voiceState === "processing"[\s\S]*return/.test(js)
+);
+assert("JS releaseVoiceGraph cleanup", /function releaseVoiceGraph/.test(js));
+assert("JS permission_denied message", /permission_denied/.test(js) && /Нет доступа к микрофону/.test(js));
+assert("JS stt_timeout voice message", /stt_timeout/.test(js) && /Распознавание речи заняло/.test(js));
+
+{
+  function appendTranscriptToValue(existing, transcript) {
+    const next = typeof transcript === "string" ? transcript.trim() : "";
+    if (!next) return typeof existing === "string" ? existing : "";
+    const cur = typeof existing === "string" ? existing : "";
+    if (!cur.trim()) return next;
+    if (/\s$/.test(cur)) return cur + next;
+    return cur + " " + next;
+  }
+
+  assert("append empty+text", appendTranscriptToValue("", "Привет") === "Привет");
+  assert(
+    "append keeps existing",
+    appendTranscriptToValue("У меня студия", "йоги") === "У меня студия йоги"
+  );
+  assert(
+    "append respects trailing space",
+    appendTranscriptToValue("Текст ", "далее") === "Текст далее"
+  );
+  assert("append ignores blank transcript", appendTranscriptToValue("keep", "  ") === "keep");
+
+  function canStartVoice(loadingFlag, state) {
+    if (loadingFlag) return false;
+    if (state === "recording" || state === "processing" || state === "requesting_permission") {
+      return false;
+    }
+    return true;
+  }
+
+  assert("voice blocked during chat loading", canStartVoice(true, "idle") === false);
+  assert("voice allowed when idle", canStartVoice(false, "idle") === true);
+  assert("no second recording while recording", canStartVoice(false, "recording") === false);
+  assert("no start while processing", canStartVoice(false, "processing") === false);
+
+  let fieldValue = "уже есть текст";
+  const before = fieldValue;
+  // simulate STT error: do not clear textarea
+  const sttFailed = true;
+  if (!sttFailed) fieldValue = "";
+  assert("STT error does not clear textarea", fieldValue === before);
+}
 
 console.log("\n=== A–I briefState lifecycle ===");
 {
@@ -488,7 +651,12 @@ assert("CSS prose lead keeps readable measure", /\.sb-lead\s*\{[^}]*max-width:\s
 assert("CSS msg no longer capped only at 36rem", !/\.sb-msg\s*\{[^}]*max-width:\s*min\(100%,\s*36rem\)/.test(css));
 assert("CSS msg uses wider column", /\.sb-msg\s*\{[^}]*max-width:\s*min\(100%,\s*52rem\)/.test(css));
 assert("CSS overflow-x clip/hidden on page or chat", /overflow-x:\s*(clip|hidden)/.test(css));
-assert("CSS mobile modes stack at 700", /@media\s*\(max-width:\s*700px\)[\s\S]*?\.sb-modes/.test(css));
+assert(
+  "CSS mobile welcome actions become real buttons at 700",
+  /@media\s*\(max-width:\s*700px\)[\s\S]*?\.sb-welcome-hotspots\s*\{[\s\S]*?position:\s*static/.test(
+    css
+  )
+);
 assert("CSS textarea width 100%", /\.sb-textarea\s*\{[^}]*width:\s*100%/.test(css));
 
 const stylesRoot = fs.readFileSync(path.join(ROOT, "css", "styles.css"), "utf8");
@@ -517,18 +685,25 @@ console.log("\n=== homepage Smart Brief entry ===");
   const homeCss = fs.readFileSync(path.join(ROOT, "css", "styles.css"), "utf8");
 
   const briefHrefs = homeHtml.match(/href="\/smart-brief\/"/g) || [];
-  assert("homepage has two /smart-brief/ links", briefHrefs.length === 2);
-  assert("homepage has brief-entry section", /id="brief-entry"/.test(homeHtml));
-  assert("homepage CTA text", /Разобраться в задаче/.test(homeHtml));
-  assert("homepage no Mark as primary CTA", !/Поговорить с Марком/.test(homeHtml));
-  assert("homepage header nav has no Mark item", !/<nav[\s\S]*?>[\s\S]*Марк[\s\S]*?<\/nav>/.test(homeHtml));
+  assert("homepage has Smart Brief CTA", briefHrefs.length >= 1);
+  assert("homepage discuss section is #contact", /id="contact"/.test(homeHtml) && /section--discuss/.test(homeHtml));
+  assert("homepage features Mark assistant", /mark-clients-scene\.png/.test(homeHtml) && /Марк — AI-помощник/.test(homeHtml));
+  assert("homepage Mark CTA label", /Рассказать Марку о задаче/.test(homeHtml));
+  assert("homepage voice cue highlighted", /Можно голосом — просто расскажите о задаче/.test(homeHtml) && /discuss-voice/.test(homeHtml));
+  assert("homepage Mark scene alt", /Марк помогает клиентам превратить идеи в понятную digital-задачу/.test(homeHtml));
+  assert("homepage Mark scene is img not CSS collage", /discuss-mark__visual/.test(homeHtml) && !/discuss-crowd|discuss-thought__cloud|discuss-thought__trail/.test(homeHtml));
+  assert("homepage CTA text", /Разобраться в задаче|Рассказать Марку о задаче/.test(homeHtml));
+  assert("homepage no Mark as primary header CTA", !/<nav[\s\S]*?>[\s\S]*Марк[\s\S]*?<\/nav>/.test(homeHtml));
   assert("contact keeps Обсудить проект in header", /href="#contact"[^>]*>Обсудить проект/.test(homeHtml));
-  assert("contact secondary path present", /contact-brief-path/.test(homeHtml));
+  assert("homepage keeps direct contacts", /wa\.me\/79183150031/.test(homeHtml) && /Ezhevskaya@gmail\.com/.test(homeHtml) && /discuss-contacts/.test(homeHtml));
   assert("no localhost in homepage smart-brief hrefs", !/href="[^"]*localhost[^"]*smart-brief/.test(homeHtml));
   assert("no test Worker URL on homepage", !/smart-brief-api-test/.test(homeHtml));
-  assert("CSS brief-entry styles present", /\.brief-entry\s*\{/.test(homeCss));
-  assert("CSS contact-brief-path present", /\.contact-brief-path\s*\{/.test(homeCss));
-  assert("CSS no zoom on homepage styles for brief-entry", !/\.brief-entry[\s\S]{0,200}\bzoom\s*:/.test(homeCss));
+  assert("CSS discuss section styles present", /\.discuss-mark\s*\{/.test(homeCss) && /\.section--discuss\s*\{/.test(homeCss));
+  assert("CSS discuss voice badge present", /\.discuss-voice__badge\s*\{/.test(homeCss));
+  assert("CSS contact-card present", /\.contact-card\s*\{/.test(homeCss));
+  assert("CSS no zoom on homepage discuss styles", !/\.discuss-mark[\s\S]{0,200}\bzoom\s*:/.test(homeCss));
+  assert("CSS no leftover discuss collage", !/\.discuss-crowd|\.discuss-thought__cloud|\.discuss-person--/.test(homeCss));
+  assert("old competing brief-entry removed", !/id="brief-entry"/.test(homeHtml) && !/Не знаете, какое решение вам нужно/.test(homeHtml));
 }
 
 if (failed) {

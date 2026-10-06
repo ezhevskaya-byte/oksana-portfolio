@@ -139,15 +139,17 @@ export function buildJsonOutputReminder() {
     "A) Still missing critical evidence → phase=clarify, recommendationMode=none, expertPlan=null, " +
     "one clarifying question in clarifyFallbackMessage.\n" +
     "B) ALL seven critical fields are grounded from USER_TURNS (business, goal, audienceInput, " +
-    "customerJourney, friction, existingTools, desiredFlow) → you MUST output phase=recommend, " +
+    "customerJourney, friction, existingTools, desiredFlow) → if one decisive fact for solution class " +
+    "is still missing (online payment need, schedule complexity, explicit site-vs-SaaS preference), " +
+    "stay in clarify with ONE solution follow-up. Otherwise MUST output phase=recommend, " +
     "recommendationMode=normal, nextInformationNeed.focus=none, and a COMPLETE expertPlan object " +
     "with ALL non-empty string fields: realProblem, audienceHypothesis, primarySolution, alternative, " +
     "whyPrimary, reuseNote, startNow, addLater, doNotBuildYet, insight. " +
-    "alternative = real alternative OR 'none: <why>'. " +
+    "alternative = real alternative of a DIFFERENT solution class (ready-made service / bot / process / integration) " +
+    "OR 'none: <why>'. Never invent personal cabinet, loyalty program, or blog without USER evidence. " +
     "existingTools known → reuseNote must say what to reuse (tables, WhatsApp, booking module, etc.). " +
-    "assistantMessage = natural Russian recommendation for the entrepreneur (not JSON dump): " +
-    "insight (не «просто сайт»), primary solution + why, alternative, minimum first stage (startNow), " +
-    "what later (addLater), what NOT to build yet (doNotBuildYet), reuse of existing tools. " +
+    "assistantMessage = natural Russian recommendation: understand the business problem first, then digital options; " +
+    "not a website sales pitch; if uncertain between classes, say so. " +
     "Do NOT ask another MVB question when recommending.\n" +
     "No markdown fences."
   );

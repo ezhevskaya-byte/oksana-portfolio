@@ -5,7 +5,8 @@ import { LIMITS } from "./config.js";
  * NOT durable across isolates/regions/restarts. Document this limitation.
  * Designed so KV/Turnstile can replace the store later without changing the route.
  */
-const buckets = new Map();
+const chatBuckets = new Map();
+const sttBuckets = new Map();
 
 function getClientKey(request) {
   return (
@@ -15,7 +16,7 @@ function getClientKey(request) {
   );
 }
 
-export function checkRateLimit(request) {
+function checkBucket(buckets, request, maxPerWindow) {
   const key = getClientKey(request);
   const now = Date.now();
   let bucket = buckets.get(key);
@@ -34,9 +35,19 @@ export function checkRateLimit(request) {
     }
   }
 
-  if (bucket.count > LIMITS.rateLimitMaxPerWindow) {
+  if (bucket.count > maxPerWindow) {
     return { ok: false, error: "rate_limited" };
   }
 
   return { ok: true };
+}
+
+/** Rate limit for POST /api/chat (unchanged policy). */
+export function checkRateLimit(request) {
+  return checkBucket(chatBuckets, request, LIMITS.rateLimitMaxPerWindow);
+}
+
+/** Separate stricter rate limit for POST /api/transcribe. */
+export function checkSttRateLimit(request) {
+  return checkBucket(sttBuckets, request, LIMITS.sttRateLimitMaxPerWindow);
 }

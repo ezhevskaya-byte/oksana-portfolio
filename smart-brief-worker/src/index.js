@@ -1,8 +1,15 @@
 import { resolveAllowedOrigin, jsonResponse, optionsResponse } from "./cors.js";
-import { validateChatBody, trimHistoryForModel } from "./validate.js";
-import { checkRateLimit } from "./rateLimit.js";
+import { validateChatBody } from "./validate.js";
+import { checkRateLimit, checkSttRateLimit } from "./rateLimit.js";
 import { createSmartBriefReply } from "./openai.js";
 import { resolveProviderConfig } from "./provider.js";
+import {
+  resolveSttConfig,
+  resolveAudioFormat,
+  validateAudioLimits,
+  recognizeSpeech
+} from "./stt.js";
+import { LIMITS } from "./config.js";
 
 function createSessionId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -46,7 +53,9 @@ async function handleChat(request, env, origin) {
   }
 
   const sessionId = validated.data.sessionId || createSessionId();
-  const history = trimHistoryForModel(validated.data.history);
+  // Full history for gate/coverage continuity (turnIds + MARK dedup).
+  // Model input is trimmed inside createSmartBriefReply only.
+  const history = validated.data.history;
 
   try {
     const reply = await createSmartBriefReply({
@@ -84,6 +93,73 @@ async function handleChat(request, env, origin) {
   }
 }
 
+/**
+ * Voice Input V1 — SpeechKit STT only. Does not touch chat/gates/briefState.
+ */
+async function handleTranscribe(request, env, origin) {
+  const rate = checkSttRateLimit(request);
+  if (!rate.ok) {
+    return errorResponse("rate_limited", 429, origin);
+  }
+
+  const sttConfig = resolveSttConfig(env);
+  if (!sttConfig.ok) {
+    return errorResponse("unavailable", 503, origin);
+  }
+
+  const formatInfo = resolveAudioFormat(request.headers.get("Content-Type"));
+  if (!formatInfo.ok) {
+    return errorResponse("unsupported_audio", 400, origin);
+  }
+
+  const contentLengthHeader = request.headers.get("Content-Length");
+  if (contentLengthHeader) {
+    const declared = Number(contentLengthHeader);
+    if (Number.isFinite(declared) && declared > LIMITS.sttMaxUploadBytes) {
+      return errorResponse("validation_error", 400, origin);
+    }
+  }
+
+  let audioBytes;
+  try {
+    audioBytes = await request.arrayBuffer();
+  } catch (_err) {
+    return errorResponse("validation_error", 400, origin);
+  }
+
+  const limits = validateAudioLimits(audioBytes.byteLength, formatInfo);
+  if (!limits.ok) {
+    return errorResponse(limits.error, 400, origin);
+  }
+
+  try {
+    const result = await recognizeSpeech(sttConfig, formatInfo, audioBytes);
+    return jsonResponse(
+      {
+        ok: true,
+        text: typeof result.text === "string" ? result.text : ""
+      },
+      200,
+      origin
+    );
+  } catch (err) {
+    const code = err && typeof err.code === "string" ? err.code : "";
+    if (code === "stt_timeout") {
+      return errorResponse("stt_timeout", 503, origin);
+    }
+    if (code === "stt_upstream") {
+      return errorResponse("stt_upstream", 503, origin);
+    }
+    if (code === "recording_too_long") {
+      return errorResponse("recording_too_long", 400, origin);
+    }
+    if (code === "unsupported_audio") {
+      return errorResponse("unsupported_audio", 400, origin);
+    }
+    return errorResponse("unavailable", 503, origin);
+  }
+}
+
 export default {
   async fetch(request, env) {
     const origin = resolveAllowedOrigin(request);
@@ -102,6 +178,13 @@ export default {
         return errorResponse("validation_error", 403, null);
       }
       return handleChat(request, env, origin);
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/transcribe") {
+      if (!origin && request.headers.get("Origin")) {
+        return errorResponse("validation_error", 403, null);
+      }
+      return handleTranscribe(request, env, origin);
     }
 
     return errorResponse("validation_error", 404, origin);

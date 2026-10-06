@@ -8,10 +8,15 @@
 OPENAI_API_KEY=
 # OPENAI_MODEL=gpt-5.4-mini
 
-# --- Yandex AI Studio ---
+# --- Yandex AI Studio (chat / Mark) ---
 # Secret stays in Cloudflare / local .dev.vars only — never commit:
 # YANDEX_API_KEY=
 # Folder id is configuration, not the API key:
 # YANDEX_FOLDER_ID=b1gkei7lv9uhdqqdtpgc
 # YANDEX_MODEL=yandexgpt-5.1/latest
 # YANDEX_STRUCTURED_OUTPUT=prompt_json
+
+# --- Yandex SpeechKit STT (Voice Input V1 — separate key, least privilege) ---
+# Cloudflare: wrangler secret put YANDEX_SPEECHKIT_API_KEY --name smart-brief-api-test
+# Never reuse YANDEX_API_KEY for STT. Never commit real values:
+# YANDEX_SPEECHKIT_API_KEY=
