@@ -1,0 +1,2 @@
+# Keep text normalized and independent of system core.autocrlf settings.
+* text=auto eol=lf
