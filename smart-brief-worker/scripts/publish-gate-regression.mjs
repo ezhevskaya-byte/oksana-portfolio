@@ -23,6 +23,7 @@ import {
   evaluateSolutionReady
 } from "../src/gate.js";
 import { trimHistoryForModel } from "../src/validate.js";
+import { DIALOGUE_STEP_PROMPTS } from "../src/dialogue.js";
 
 let failed = 0;
 function assert(name, cond) {
@@ -131,6 +132,93 @@ console.log("\n=== C. Audience: WHO known → matters once; then neither ===");
   const t2 = resolveClarifyTarget(r2.missing, m2.coverage, turns2);
   assert("after matters → audience closed", t2.focus !== "audienceInput");
   assert("audience known", m2.coverage.audienceInput.status === "known");
+}
+
+console.log("\n=== C2. Concise WHO answer is contextual and does not repeat ===");
+{
+  const whoQuestion = "А кто чаще всего у вас покупает — кто ваши основные покупатели?";
+  const hist = [
+    { role: "assistant", content: whoQuestion },
+    { role: "user", content: "Мужчины" }
+  ];
+  const turns = [{ id: "u1", text: "Мужчины" }];
+  assert("short WHO answer accepted only after WHO question", !isAudienceWhoEvidence("Мужчины"));
+  const audienceQuestions = [
+    "Кто ваши основные покупатели?",
+    "Кто чаще всего у вас покупает?",
+    "Кто ваши клиенты?"
+  ];
+  for (let i = 0; i < audienceQuestions.length; i += 1) {
+    assert("audience WHO question " + (i + 1), wasAspectAskedAndAnswered(
+      [{ role: "assistant", content: audienceQuestions[i] }, { role: "user", content: "Мужчины" }],
+      "audienceInput",
+      "who_or_segment"
+    ));
+  }
+  const unrelatedQuestions = [
+    "Кто будет обновлять сайт?",
+    "Кто отвечает за заявки?",
+    "Кто будет заниматься контентом?"
+  ];
+  for (let i = 0; i < unrelatedQuestions.length; i += 1) {
+    assert("unrelated WHO question " + (i + 1), !wasAspectAskedAndAnswered(
+      [{ role: "assistant", content: unrelatedQuestions[i] }, { role: "user", content: "Мужчины" }],
+      "audienceInput",
+      "who_or_segment"
+    ));
+  }
+  const unrelatedRecovery = mergeBriefCoverage(
+    null,
+    {},
+    [{ id: "u1", text: "Мужчины" }],
+    [{ role: "assistant", content: unrelatedQuestions[0] }, { role: "user", content: "Мужчины" }]
+  );
+  assert("unrelated question does not recover WHO", !unrelatedRecovery.coverage.audienceInput.sources.some(function (source) {
+    return source.aspect === "who_or_segment";
+  }));
+  assert("WHO answer recognized in history", wasAspectAskedAndAnswered(hist, "audienceInput", "who_or_segment"));
+  const recovered = mergeBriefCoverage(null, {}, turns, hist);
+  assert(
+    "short WHO source recovered",
+    recovered.coverage.audienceInput.sources.some(function (source) {
+      return source.aspect === "who_or_segment" && /мужчин/i.test(source.quote);
+    })
+  );
+  const ready = evaluateBriefReady(recovered.coverage, turns);
+  const mattersQuestion = publishClarifyQuestion(
+    "А что для этих людей обычно важнее всего при выборе?",
+    recovered.coverage,
+    turns,
+    [{ key: "audienceInput", aspect: "what_matters", reason: "status_partial" }],
+    hist
+  );
+  assert("next missing audience aspect is WHAT_MATTERS", /что для этих людей обычно важнее всего/i.test(mattersQuestion));
+  const published = publishClarifyQuestion(
+    whoQuestion,
+    recovered.coverage,
+    turns,
+    ready.missing,
+    hist
+  );
+  assert("WHO question is not repeated", !/кто чаще всего у вас покупает/i.test(published));
+  assert("correction keeps the segment", isAudienceWhoEvidence("Я же сказала мужчины") === false);
+  assert(
+    "correction is recognized in context",
+    wasAspectAskedAndAnswered(
+      [{ role: "assistant", content: whoQuestion }, { role: "user", content: "Я же сказала мужчины" }],
+      "audienceInput",
+      "who_or_segment"
+    )
+  );
+  assert("generic people is not accepted in context", !wasAspectAskedAndAnswered(
+    [{ role: "assistant", content: whoQuestion }, { role: "user", content: "Люди" }],
+    "audienceInput",
+    "who_or_segment"
+  ));
+  assert(
+    "friction wording is clear",
+    DIALOGUE_STEP_PROMPTS.friction === "Что в работе вашего бизнеса вы хотели бы улучшить в первую очередь?"
+  );
 }
 
 console.log("\n=== D. Provider paraphrase of known field → rejected ===");

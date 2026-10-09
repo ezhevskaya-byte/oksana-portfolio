@@ -27,7 +27,7 @@ const FOCUS_PROMPTS = {
     "А что происходит дальше: как человек связывается с вами и как получает нужную информацию или оформляет заявку?",
   customerJourney_after_contact:
     "Как обычно проходит следующий шаг после первого контакта — уточнение деталей, оценка задачи, оформление — и что происходит дальше?",
-  friction: "Где сейчас больше всего теряется время, заявки или удобство — для вас или для клиентов?",
+  friction: "Что в работе вашего бизнеса вы хотели бы улучшить в первую очередь?",
   existingTools:
     "Какими инструментами вы уже пользуетесь: сайт, соцсети, CRM, таблицы, заявки, бот?",
   existingTools_beyond_channels:
@@ -1977,16 +1977,18 @@ export function wasAspectAskedAndAnswered(history, field, aspect) {
     if (!item || item.role !== "assistant") continue;
     const qField = inferQuestionTargetField(item.content);
     const qAspect = inferQuestionTargetAspect(item.content);
-    if (qField !== field) continue;
+    if (qField !== field && !(field === "audienceInput" && isAudienceWhoQuestion(item.content))) continue;
     if (aspect && qAspect && qAspect !== aspect) continue;
     for (let j = i + 1; j < items.length; j += 1) {
       if (items[j] && items[j].role === "user" && isNonEmptyString(items[j].content)) {
         const reply = String(items[j].content).trim();
-        if (reply.length < GATE_POLICY.minQuoteChars) break;
         if (field === "audienceInput") {
-          if (aspect === "who_or_segment") return isAudienceWhoEvidence(reply);
+          if (aspect === "who_or_segment") {
+            return isAudienceWhoEvidence(reply) || isAudienceWhoEvidenceAfterQuestion(reply, item.content);
+          }
           if (aspect === "what_matters") return isAudienceWhatMattersEvidence(reply);
         }
+        if (reply.length < GATE_POLICY.minQuoteChars) break;
         if (field === "business") return looksLikeBusinessEvidence(reply);
         if (field === "goal") return looksLikeGoalEvidence(reply);
         if (field === "friction") return looksLikeFrictionEvidence(reply);
@@ -2654,6 +2656,37 @@ export function isAudienceWhoEvidence(quote) {
     approachSegment ||
     decisionMakers
   );
+}
+
+function isAudienceWhoQuestion(question) {
+  const q = normalizeSpan(question);
+  if (!q || q.indexOf("кто") === -1 || /(?:важн|при\s+выборе|обращают\s+внимание)/.test(q)) {
+    return false;
+  }
+  const audienceNoun = /(?:покупател|клиент|гост|посетител|аудитор|целев)/.test(q);
+  const buyingBehavior =
+    /(?:чаще|обычно|в\s+основном|типичн)/.test(q) &&
+    /(?:покупа|обраща|приход|останавлива|заказыва|выбира)/.test(q);
+  return audienceNoun || buyingBehavior;
+}
+
+function isConciseAudienceSegment(quote) {
+  const q = normalizeSpan(quote).replace(/^(?:я\s+же\s+сказал[ао]?|я\s+говорил[ао]?|именно|это)\s*[:,—-]?\s*/i, "").trim();
+  if (!q || q.length > 48) return false;
+  if (/^(?:люди|человек|клиенты|покупатели|народ)$/i.test(q)) return false;
+  return /^(?:мужчин[а-яё]*|женщин[а-яё]*|семь[а-яё]*|молод[её]ж[а-яё]*|пенсионер[а-яё]*|пары|семей\s+с\s+детьми|родител[а-яё]*|подростк[а-яё]*|студент[а-яё]*)$/i.test(q);
+}
+
+function isAudienceWhoEvidenceAfterQuestion(quote, question) {
+  return isAudienceWhoQuestion(question) && isConciseAudienceSegment(quote);
+}
+
+function isAudienceWhoEvidenceInHistory(quote, history) {
+  const items = Array.isArray(history) ? history : [];
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    if (items[i] && items[i].role === "assistant") return isAudienceWhoEvidenceAfterQuestion(quote, items[i].content);
+  }
+  return false;
 }
 
 /**
@@ -3500,7 +3533,7 @@ export function encodeBriefState(coverage) {
  * If still not known, recover grounded evidence directly from USER_TURNS (server-owned continuity).
  * Recovery never re-fills an aspect that the current model explicitly replaced.
  */
-export function mergeBriefCoverage(priorBriefState, modelCoverage, userTurns) {
+export function mergeBriefCoverage(priorBriefState, modelCoverage, userTurns, history) {
   const turnsById = turnMap(userTurns || []);
   const prior = parseBriefState(priorBriefState);
   const model = normalizeCoverage(modelCoverage);
@@ -3534,7 +3567,7 @@ export function mergeBriefCoverage(priorBriefState, modelCoverage, userTurns) {
         }
       }
 
-      const recovered = recoverSourcesFromTurns(key, userTurns || []).filter(function (s) {
+      const recovered = recoverSourcesFromTurns(key, userTurns || [], history).filter(function (s) {
         return !replacedAspects[s.aspect];
       });
       if (recovered.length) {
@@ -3780,7 +3813,7 @@ export function looksLikeFrictionEvidence(quote) {
   );
 }
 
-export function recoverSourcesFromTurns(fieldKey, userTurns) {
+export function recoverSourcesFromTurns(fieldKey, userTurns, history) {
   const turns = userTurns || [];
   const out = [];
 
@@ -3788,6 +3821,13 @@ export function recoverSourcesFromTurns(fieldKey, userTurns) {
     const turn = turns[t];
     if (!turn || !turn.id || !isNonEmptyString(turn.text)) continue;
     const spans = candidateSpans(turn.text);
+    if (
+      fieldKey === "audienceInput" &&
+      isAudienceWhoEvidenceInHistory(turn.text, history) &&
+      spans.indexOf(turn.text) === -1
+    ) {
+      spans.push(turn.text);
+    }
 
     if (fieldKey === "business") {
       for (let i = 0; i < spans.length; i += 1) {
@@ -3851,7 +3891,7 @@ export function recoverSourcesFromTurns(fieldKey, userTurns) {
     if (fieldKey === "audienceInput") {
       for (let i = 0; i < spans.length; i += 1) {
         const span = spans[i];
-        if (isAudienceWhoEvidence(span)) {
+        if (isAudienceWhoEvidence(span) || isAudienceWhoEvidenceInHistory(span, history)) {
           out.push({
             turnId: turn.id,
             quote: span,

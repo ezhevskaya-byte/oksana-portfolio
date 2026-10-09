@@ -187,7 +187,7 @@ async function callOpenAI({ apiKey, model, input, instructions }) {
  * BRIEF_READY + SOLUTION_READY → evidence-backed safe recommend (never READY_REPAIR text).
  */
 function softDegradeFromPrior(priorBriefState, userTurns, history) {
-  const merged = mergeBriefCoverage(priorBriefState, emptyCoverageSkeleton(), userTurns);
+  const merged = mergeBriefCoverage(priorBriefState, emptyCoverageSkeleton(), userTurns, history);
   if (needsSolutionDiscriminator(merged.coverage, userTurns)) {
     return toSolutionDiscriminatorPublic(
       merged.coverage,
@@ -605,7 +605,7 @@ export async function createSmartBriefReply({
     // Fail-safe: if provider dies exactly when we only need a solution discriminator,
     // continue from deterministic state instead of hard 503 / generic recommend failure.
     if (err && (err.code === "provider_timeout" || err.code === "provider_upstream")) {
-      const probe = mergeBriefCoverage(priorBriefState, emptyCoverageSkeleton(), userTurns);
+      const probe = mergeBriefCoverage(priorBriefState, emptyCoverageSkeleton(), userTurns, gateHistory);
       if (needsSolutionDiscriminator(probe.coverage, userTurns)) {
         return toSolutionDiscriminatorPublic(
           probe.coverage,
@@ -629,7 +629,7 @@ export async function createSmartBriefReply({
     throw err;
   }
 
-  const merged = mergeBriefCoverage(priorBriefState, turn.briefCoverage, userTurns);
+  const merged = mergeBriefCoverage(priorBriefState, turn.briefCoverage, userTurns, gateHistory);
   turn.briefCoverage = merged.coverage;
   const briefState = merged.briefState;
 
